@@ -1,5 +1,5 @@
 .venv/
 __pycache__/
 *.pyc
-data/raw/
-
+data/raw/nhanes/
+data/raw/uci_ckd/
