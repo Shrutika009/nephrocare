@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 data/raw/nhanes/
 data/raw/uci_ckd/
+.env
+__pycache__/
+.ipynb_checkpoints/
