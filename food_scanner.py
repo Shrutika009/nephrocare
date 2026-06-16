@@ -27,10 +27,8 @@ food_df = pd.read_csv(
 
 print(f"Loaded {len(food_df)} foods")
 
-
 # Common food aliases
 food_aliases = {
-    "rice": "Rice",
     "milk": "Milk",
     "banana": "Banana",
     "cilantro": "Coriander",
@@ -65,14 +63,6 @@ def scan_food_image(image_path):
             - No markdown
             - Use common food names
             - Ignore plates, bowls, spoons and containers
-
-            Example:
-
-            rice
-            milk
-            banana
-            chapati
-            dal
             """
         ]
     )
@@ -80,12 +70,13 @@ def scan_food_image(image_path):
     return response.text
 
 
-# Find matching food in dataset
+# Find food in dataset
 def find_food(food_name):
 
     food_name = food_name.lower().strip()
 
     # Alias lookup
+
     if food_name in food_aliases:
 
         alias = food_aliases[food_name]
@@ -102,6 +93,7 @@ def find_food(food_name):
             return result.head(1)
 
     # Direct lookup
+
     direct_match = food_df[
         food_df["food_name"].str.contains(
             food_name,
@@ -114,6 +106,7 @@ def find_food(food_name):
         return direct_match.head(1)
 
     # Fuzzy lookup
+
     all_foods = food_df["food_name"].astype(str).tolist()
 
     best_match = process.extractOne(
@@ -130,11 +123,9 @@ def find_food(food_name):
     if similarity < 85:
         return None
 
-    result = food_df[
+    return food_df[
         food_df["food_name"] == matched_food
     ]
-
-    return result
 
 
 # Calculate kidney score
@@ -146,9 +137,7 @@ def kidney_score(row):
     score -= row["phosphorus_mg"] * 0.035
     score -= row["sodium_mg"] * 0.015
 
-    score = max(0, score)
-
-    return round(score, 2)
+    return round(max(score, 0), 2)
 
 
 # CKD safety classification
@@ -176,38 +165,86 @@ def food_status(row):
         return "SAFE"
 
 
-# Display analysis
-def analyze_food(food_name):
+# Gemini fallback for foods not present in dataset
+def estimate_nutrition_with_gemini(food_name):
 
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=f"""
+        Estimate nutritional values for 100 grams of {food_name}.
+
+        Return exactly in this format:
+
+        Calories:
+        Protein:
+        Potassium:
+        Phosphorus:
+        Sodium:
+        CKD_Status:
+        """
+    )
+
+    return response.text
+
+
+# Display food analysis
+def analyze_food(food_name):
+    
     result = find_food(food_name)
 
+    print("\n" + "=" * 60)
+    print("Detected Food :", food_name)
+
+    # Food not found in IFCT dataset
     if result is None or len(result) == 0:
 
-        print("\n" + "=" * 60)
-        print("Detected Food :", food_name)
-        print("Status        : NOT FOUND IN DATASET")
+        nutrition = estimate_nutrition_with_gemini(
+            food_name
+        )
+
+        print(nutrition)
 
         return
 
+    # Food found in IFCT dataset
+
     row = result.iloc[0]
 
-    print("\n" + "=" * 60)
+    print(
+        "Calories      :",
+        round(row["energy_kcal"], 2)
+    )
 
-    print("Detected Food :", food_name)
-    print("Matched Food  :", row["food_name"])
+    print(
+        "Protein (g)   :",
+        round(row["protein_g"], 2)
+    )
 
-    if "category" in row.index:
-        print("Category      :", row["category"])
+    print(
+        "Potassium (mg):",
+        round(row["potassium_mg"], 2)
+    )
 
-    print("Calories      :", round(row["energy_kcal"], 2))
-    print("Protein (g)   :", round(row["protein_g"], 2))
-    print("Potassium (mg):", round(row["potassium_mg"], 2))
-    print("Phosphorus(mg):", round(row["phosphorus_mg"], 2))
-    print("Sodium (mg)   :", round(row["sodium_mg"], 2))
+    print(
+        "Phosphorus(mg):",
+        round(row["phosphorus_mg"], 2)
+    )
 
-    print("Status        :", food_status(row))
-    print("Kidney Score  :", kidney_score(row), "/100")
+    print(
+        "Sodium (mg)   :",
+        round(row["sodium_mg"], 2)
+    )
 
+    print(
+        "Status        :",
+        food_status(row)
+    )
+
+    print(
+        "Kidney Score  :",
+        kidney_score(row),
+        "/100"
+    )
 
 # Main execution
 if __name__ == "__main__":
