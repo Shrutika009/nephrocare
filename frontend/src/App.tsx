@@ -132,6 +132,8 @@ type FoodPlanResponse = {
   recommendations: FoodAnalysis[]
 }
 
+type FoodTab = 'scan' | 'check' | 'recommend' | 'plan'
+
 type MealPlanResponse = {
   breakfast: FoodAnalysis[]
   lunch: FoodAnalysis[]
@@ -153,6 +155,7 @@ const stageDescriptions: Record<string, { title: string; description: string }> 
 const stageOrder = ['G1', 'G2', 'G3a', 'G3b', 'G4', 'G5']
 const pageWidth = 612
 const pageHeight = 792
+const apiBaseUrl = 'http://127.0.0.1:8000'
 
 const labInputLabels: Record<keyof PredictionForm, string> = {
   age: 'Age',
@@ -189,6 +192,15 @@ function formatValue(value: number | string | null | undefined, fallback = 'N/A'
   if (value === null || value === undefined || value === '') return fallback
   if (typeof value === 'number') return Number.isInteger(value) ? String(value) : String(value)
   return value
+}
+
+function readableApiError(err: unknown, fallback: string) {
+  if (err instanceof TypeError) return 'NephroCare API is not running. Start the local API server, then try again.'
+  return err instanceof Error ? err.message : fallback
+}
+
+function foodStatusClass(status: string) {
+  return status.toLowerCase().replace(/\s+/g, '-')
 }
 
 function stageNumber(stageKey: string) {
@@ -422,7 +434,7 @@ function App() {
   const [extractedFields, setExtractedFields] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [foodTab, setFoodTab] = useState<'scan' | 'check' | 'recommend' | 'plan'>('scan')
+  const [foodTab, setFoodTab] = useState<FoodTab>('scan')
   const [foodName, setFoodName] = useState('')
   const [foodStage, setFoodStage] = useState<'G1' | 'G2' | 'G3a' | 'G3b' | 'G4' | 'G5'>('G3a')
   const [foodHypertension, setFoodHypertension] = useState<'yes' | 'no'>('no')
@@ -448,6 +460,17 @@ function App() {
     setFeaturesOpen(false)
   }
 
+  const showFoodTools = (tab: FoodTab = 'scan') => {
+    setFoodTab(tab)
+    setFoodError('')
+    showPage('food-tools')
+  }
+
+  const selectFoodTab = (tab: FoodTab) => {
+    setFoodTab(tab)
+    setFoodError('')
+  }
+
   const submitPrediction = async (event: FormEvent) => {
     event.preventDefault()
     if (numericPredictionKeys.some(key => form[key] === '') || !form.sex || !form.hypertension || !form.diabetes_mellitus) {
@@ -461,7 +484,7 @@ function App() {
       ...Object.fromEntries(numericPredictionKeys.map(key => [key, Number(form[key])])),
     }
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/predict', {
+      const response = await fetch(`${apiBaseUrl}/api/predict`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(predictionPayload),
@@ -485,7 +508,7 @@ function App() {
     try {
       const payload = new FormData()
       payload.append('report', file)
-      const response = await fetch('http://127.0.0.1:8000/api/extract-report', { method: 'POST', body: payload })
+      const response = await fetch(`${apiBaseUrl}/api/extract-report`, { method: 'POST', body: payload })
       if (!response.ok) throw new Error('Report extraction failed.')
       const data: { values?: Partial<PredictionForm>; matched_fields?: string[]; warning?: string | null } = await response.json()
       const values = data.values ?? {}
@@ -508,13 +531,13 @@ function App() {
     try {
       const payload = new FormData()
       payload.append('image', file)
-      const response = await fetch('http://127.0.0.1:8000/api/scan-food-image', { method: 'POST', body: payload })
+      const response = await fetch(`${apiBaseUrl}/api/scan-food-image`, { method: 'POST', body: payload })
       const data: FoodScanResponse & { error?: string } = await response.json()
       if (!response.ok) throw new Error(data.error || 'Could not scan the image.')
       setFoodScan(data)
       setFoodTab('scan')
     } catch (err) {
-      setFoodError(err instanceof Error ? err.message : 'Could not scan the image.')
+      setFoodError(readableApiError(err, 'Could not scan the image.'))
     } finally {
       event.target.value = ''
       setFoodLoading(false)
@@ -529,7 +552,7 @@ function App() {
     setFoodLoading(true)
     setFoodError('')
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/food-analyze', {
+      const response = await fetch(`${apiBaseUrl}/api/food-analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ food_name: foodName }),
@@ -539,7 +562,7 @@ function App() {
       setFoodCheck(data)
       setFoodTab('check')
     } catch (err) {
-      setFoodError(err instanceof Error ? err.message : 'Food not found.')
+      setFoodError(readableApiError(err, 'Food not found.'))
     } finally {
       setFoodLoading(false)
     }
@@ -549,7 +572,7 @@ function App() {
     setFoodLoading(true)
     setFoodError('')
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/food-recommendations', {
+      const response = await fetch(`${apiBaseUrl}/api/food-recommendations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -564,7 +587,7 @@ function App() {
       setFoodRecommendations(data.recommendations)
       setFoodTab('recommend')
     } catch (err) {
-      setFoodError(err instanceof Error ? err.message : 'Could not load recommendations.')
+      setFoodError(readableApiError(err, 'Could not load recommendations.'))
     } finally {
       setFoodLoading(false)
     }
@@ -574,7 +597,7 @@ function App() {
     setFoodLoading(true)
     setFoodError('')
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/meal-plan', {
+      const response = await fetch(`${apiBaseUrl}/api/meal-plan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -588,7 +611,7 @@ function App() {
       setMealPlan(data)
       setFoodTab('plan')
     } catch (err) {
-      setFoodError(err instanceof Error ? err.message : 'Could not load meal plan.')
+      setFoodError(readableApiError(err, 'Could not load meal plan.'))
     } finally {
       setFoodLoading(false)
     }
@@ -616,7 +639,7 @@ function App() {
         <span className="brand-text">NephroCare<small>CKD PREDICTION SYSTEM</small></span>
       </a>
       <nav className="desktop-nav" aria-label="Main navigation">
-        <button className="nav-link feature-trigger" onClick={() => setFeaturesOpen(!featuresOpen)} aria-expanded={featuresOpen}>Features <span className={featuresOpen ? 'chevron up' : 'chevron'}>⌄</span></button>
+        <button className="nav-link feature-trigger" onClick={() => setFeaturesOpen(!featuresOpen)} aria-expanded={featuresOpen}>Features <span className={featuresOpen ? 'chevron up' : 'chevron'}>v</span></button>
         <button className="nav-link" onClick={() => scrollTo('about')}>About</button>
         <button className="nav-link" onClick={() => scrollTo('resources')}>Resources</button>
       </nav>
@@ -627,11 +650,17 @@ function App() {
       <button className="mobile-menu" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Toggle menu"><Icon name={mobileOpen ? 'x' : 'menu'} /></button>
 
       {featuresOpen && <div className="mega-menu">
-        <div className="mega-links">{features.map(feature => <button type="button" key={feature.title} onClick={feature.title === 'CKD Risk Prediction' ? () => showPage('ckd-prediction') : feature.title === 'Food Safety Checker' || feature.title === 'Food Recommendation' || feature.title === 'AI Meal Planner' ? () => showPage('food-tools') : closeMenus}><span><Icon name={feature.icon} size={18} /></span>{feature.title}</button>)}</div>
+        <div className="mega-links">{features.map(feature => <button type="button" key={feature.title} onClick={
+          feature.title === 'CKD Risk Prediction' ? () => showPage('ckd-prediction')
+            : feature.title === 'Food Safety Checker' ? () => showFoodTools('check')
+              : feature.title === 'Food Recommendation' ? () => showFoodTools('recommend')
+                : feature.title === 'AI Meal Planner' ? () => showFoodTools('plan')
+                  : closeMenus
+        }><span><Icon name={feature.icon} size={18} /></span>{feature.title}</button>)}</div>
       </div>}
 
       {mobileOpen && <div className="mobile-panel">
-        <button type="button" onClick={() => showPage('ckd-prediction')}>Features</button><button onClick={() => scrollTo('about')}>About</button><button onClick={() => showPage('food-tools')}>Food tools</button><button onClick={() => scrollTo('resources')}>Resources</button>
+        <button type="button" onClick={() => showPage('ckd-prediction')}>Features</button><button onClick={() => scrollTo('about')}>About</button><button onClick={() => showFoodTools('scan')}>Food tools</button><button onClick={() => scrollTo('resources')}>Resources</button>
       </div>}
     </header>
 
@@ -726,7 +755,7 @@ function App() {
             ['check', 'Food check'],
             ['recommend', 'Recommendations'],
             ['plan', 'Meal plan'],
-          ].map(([key, label]) => <button key={key} type="button" className={foodTab === key ? 'active' : ''} onClick={() => setFoodTab(key as typeof foodTab)}>{label}</button>)}
+          ].map(([key, label]) => <button key={key} type="button" className={foodTab === key ? 'active' : ''} onClick={() => selectFoodTab(key as FoodTab)}>{label}</button>)}
         </div>
         <div className="nutrition-grid">
           <div className="nutrition-panel">
@@ -744,7 +773,7 @@ function App() {
                   <b>Detected foods</b>
                   <p>{foodScan.detected_foods.join(', ')}</p>
                 </div>
-                {foodScan.analyses.map(item => <div className="nutrition-item" key={item.food_name}><span>{item.food_name}</span><small>{item.status} · {item.kidney_score}/100</small></div>)}
+                {foodScan.analyses.map(item => <div className="nutrition-item" key={item.food_name}><span>{item.food_name}</span><small>{item.status} - {item.kidney_score}/100</small></div>)}
               </>}
             </>}
 
@@ -757,8 +786,8 @@ function App() {
               </div>
               {foodCheck && <div className="nutrition-summary">
                 <strong>{foodCheck.food_name}</strong>
-                <p>{foodCheck.status} · Kidney score {foodCheck.kidney_score}/100</p>
-                <small>Potassium {foodCheck.potassium_mg} mg · Phosphorus {foodCheck.phosphorus_mg} mg · Sodium {foodCheck.sodium_mg} mg</small>
+                <p>{foodCheck.status} - Kidney score {foodCheck.kidney_score}/100</p>
+                <small>Potassium {foodCheck.potassium_mg} mg - Phosphorus {foodCheck.phosphorus_mg} mg - Sodium {foodCheck.sodium_mg} mg</small>
               </div>}
             </>}
 
@@ -780,7 +809,7 @@ function App() {
                 <button type="button" onClick={loadRecommendations} disabled={foodLoading}>Show</button>
               </div>
               {foodRecommendations.length > 0 && <div className="nutrition-list">
-                {foodRecommendations.map(item => <div className="nutrition-item" key={item.food_name}><span>{item.food_name}</span><small>{item.category} · {item.status}</small></div>)}
+                {foodRecommendations.map(item => <div className="nutrition-item" key={item.food_name}><span>{item.food_name}</span><small>{item.category} - {item.status}</small></div>)}
               </div>}
             </>}
 
@@ -919,8 +948,8 @@ function App() {
         <p className="footer-care-note">Screening results are not a diagnosis. Please discuss health concerns and next steps with a qualified clinician.</p>
       </div>
       <div className="footer-bottom">
-        <span>© 2026 NephroCare</span>
-        <span>Privacy · Terms · Medical disclaimer</span>
+        <span>&copy; 2026 NephroCare</span>
+        <span>Privacy - Terms - Medical disclaimer</span>
       </div>
     </footer>
   </div>
