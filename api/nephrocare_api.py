@@ -16,9 +16,10 @@ import re
 import shutil
 import subprocess
 import tempfile
-import cgi
 import os
 from difflib import get_close_matches
+from email.parser import BytesParser
+from email.policy import default
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -37,6 +38,13 @@ USDA_NUTRIENT_IDS = {
     "potassium_mg": "306",
     "sodium_mg": "307",
 }
+
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(ROOT / ".env")
+except Exception:
+    pass
 
 try:
     from dotenv import load_dotenv
@@ -870,6 +878,29 @@ Ignore plates, bowls, spoons and containers."""
         return inferred, f"Gemini image AI failed: {error_name}. Check the key, quota, or try again in a minute."
 
 
+def read_multipart_upload(handler: BaseHTTPRequestHandler, field_name: str) -> dict[str, Any] | None:
+    length = int(handler.headers.get("Content-Length", "0"))
+    content_type = handler.headers.get("Content-Type", "")
+    if length <= 0 or "multipart/form-data" not in content_type:
+        return None
+
+    body = handler.rfile.read(length)
+    message = BytesParser(policy=default).parsebytes(
+        f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("utf-8") + body
+    )
+    for part in message.iter_parts():
+        if part.get_content_disposition() != "form-data":
+            continue
+        if part.get_param("name", header="content-disposition") != field_name:
+            continue
+        return {
+            "filename": part.get_filename() or field_name,
+            "content_type": part.get_content_type(),
+            "data": part.get_payload(decode=True) or b"",
+        }
+    return None
+
+
 def number(value: Any) -> float:
     try:
         if value is None or value == "":
@@ -1140,19 +1171,14 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/api/scan-food-image":
-            form = cgi.FieldStorage(fp=self.rfile, headers=self.headers, environ={
-                "REQUEST_METHOD": "POST",
-                "CONTENT_TYPE": self.headers.get("Content-Type", ""),
-            })
-            uploaded = form["image"] if "image" in form else None
-            if uploaded is None or not getattr(uploaded, "file", None):
+            uploaded = read_multipart_upload(self, "image")
+            if uploaded is None or not uploaded["data"]:
                 self.respond(400, {"error": "Upload an image."})
                 return
-            data = uploaded.file.read()
             foods, warning = scan_food_image_bytes(
-                getattr(uploaded, "filename", "food.jpg"),
-                getattr(uploaded, "type", "") or self.headers.get("Content-Type", ""),
-                data,
+                uploaded["filename"],
+                uploaded["content_type"],
+                uploaded["data"],
             )
             if not foods:
                 self.respond(200, {
@@ -1174,19 +1200,14 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/api/extract-report":
-            form = cgi.FieldStorage(fp=self.rfile, headers=self.headers, environ={
-                "REQUEST_METHOD": "POST",
-                "CONTENT_TYPE": self.headers.get("Content-Type", ""),
-            })
-            uploaded = form["report"] if "report" in form else None
-            if uploaded is None or not getattr(uploaded, "file", None):
+            uploaded = read_multipart_upload(self, "report")
+            if uploaded is None or not uploaded["data"]:
                 self.respond(400, {"error": "Upload a report file."})
                 return
-            data = uploaded.file.read()
             text, warning = text_from_uploaded_file(
-                getattr(uploaded, "filename", "report"),
-                getattr(uploaded, "type", "") or self.headers.get("Content-Type", ""),
-                data,
+                uploaded["filename"],
+                uploaded["content_type"],
+                uploaded["data"],
             )
             extracted = extract_lab_values(text)
             self.respond(200, {
