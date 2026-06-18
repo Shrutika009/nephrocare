@@ -44,6 +44,13 @@ NephroCare brings CKD risk prediction, CKD stage screening, lab report support, 
   - CKD screen positive: 1,521
   - Insufficient kidney data: 1,528
 
+### 3. Indian CKD Foods Dataset
+
+- Processed file: `data/processed/indian_ckd_foods.csv`
+- Records: **527 foods**
+- Use: **food safety checks, food recommendations, and meal planning**
+- Includes Indian food names/categories with protein, energy, potassium, phosphorus, sodium, and CKD safety labels.
+
 ## Run Dataset Extraction
 
 ```bash
