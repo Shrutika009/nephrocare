@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-export type IconName = 'activity' | 'alert' | 'arrow' | 'camera' | 'chart' | 'check' | 'chef' | 'clipboard' | 'food' | 'heart' | 'lab' | 'menu' | 'message' | 'report' | 'shield' | 'spark' | 'stethoscope' | 'user' | 'x'
+export type IconName = 'activity' | 'alert' | 'arrow' | 'camera' | 'chart' | 'check' | 'chef' | 'clipboard' | 'food' | 'heart' | 'lab' | 'menu' | 'message' | 'report' | 'shield' | 'spark' | 'stethoscope' | 'user' | 'x' | 'log-out'
 
 const icons: Record<IconName, ReactNode> = {
   activity: <><path d="M3 12h4l2-7 4 14 2-7h6" /></>,
@@ -22,6 +22,7 @@ const icons: Record<IconName, ReactNode> = {
   stethoscope: <><path d="M4 3v6a4 4 0 0 0 8 0V3" /><path d="M8 13v2a5 5 0 0 0 10 0v-1" /><circle cx="18" cy="10" r="2" /></>,
   user: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
   x: <><path d="m6 6 12 12" /><path d="m18 6-12 12" /></>,
+  'log-out': <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" /></>,
 }
 
 export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {

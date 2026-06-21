@@ -1119,6 +1119,125 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(404, {"error": "Not found"})
 
     def do_POST(self) -> None:
+        if self.path == "/api/send-whatsapp":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length).decode("utf-8") if length else "{}"
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                self.respond(400, {"error": "Invalid JSON"})
+                return
+            
+            phone = str(payload.get("phone", "")).strip()
+            message = str(payload.get("message", "")).strip()
+            
+            if not phone:
+                self.respond(400, {"error": "Phone number is required."})
+                return
+            if not message:
+                self.respond(400, {"error": "Message body is required."})
+                return
+            
+            import urllib.request
+            import urllib.parse
+            import base64
+            
+            # Format clean phone number (digits only) for whatsapp link generator
+            clean_phone = re.sub(r'[^\d]', '', phone)
+            
+            # Read CallMeBot environment variable
+            callmebot_api_key = (os.environ.get("CALLMEBOT_API_KEY") or "").strip()
+            
+            # Generate the WhatsApp Web / API click-to-chat URL
+            whatsapp_web_url = f"https://api.whatsapp.com/send?phone={clean_phone}&text={urllib.parse.quote(message)}"
+            
+            # If CallMeBot is configured, prioritize it for simple free automatic sending
+            if callmebot_api_key:
+                clean_phone_cmb = re.sub(r'[^\d]', '', phone)
+                cmb_url = f"https://api.callmebot.com/whatsapp.php?phone={clean_phone_cmb}&text={urllib.parse.quote(message)}&apikey={callmebot_api_key}"
+                try:
+                    req = urllib.request.Request(cmb_url, method="GET")
+                    with urllib.request.urlopen(req, timeout=8) as response:
+                        resp_body = response.read().decode("utf-8")
+                        self.respond(200, {
+                            "success": True,
+                            "provider": "callmebot",
+                            "response": resp_body
+                        })
+                        return
+                except Exception as e:
+                    self.respond(200, {
+                        "success": False,
+                        "code": "API_ERROR",
+                        "error": f"CallMeBot API error: {str(e)}",
+                        "whatsapp_web_url": whatsapp_web_url
+                    })
+                    return
+
+            # Read Twilio environment variables
+            account_sid = (os.environ.get("TWILIO_ACCOUNT_SID") or "").strip()
+            auth_token = (os.environ.get("TWILIO_AUTH_TOKEN") or "").strip()
+            from_number = (os.environ.get("TWILIO_FROM_NUMBER") or "").strip()
+            
+            if not account_sid or not auth_token or not from_number:
+                self.respond(200, {
+                    "success": False,
+                    "code": "MISSING_CONFIG",
+                    "error": "Twilio or CallMeBot credentials missing in .env file",
+                    "whatsapp_web_url": whatsapp_web_url
+                })
+                return
+            
+            # Format numbers for Twilio
+            # Ensure number has + prefix
+            formatted_to = clean_phone
+            if not formatted_to.startswith('+'):
+                formatted_to = '+' + formatted_to
+            
+            # Twilio From must begin with whatsapp:
+            formatted_from = from_number
+            if not formatted_from.startswith("whatsapp:"):
+                formatted_from = f"whatsapp:{formatted_from}"
+                
+            formatted_to_twilio = f"whatsapp:{formatted_to}"
+            
+            url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
+            data = urllib.parse.urlencode({
+                "From": formatted_from,
+                "To": formatted_to_twilio,
+                "Body": message
+            }).encode("utf-8")
+            
+            req = urllib.request.Request(url, data=data, method="POST")
+            auth_str = f"{account_sid}:{auth_token}"
+            auth_b64 = base64.b64encode(auth_str.encode("utf-8")).decode("utf-8")
+            req.add_header("Authorization", f"Basic {auth_b64}")
+            req.add_header("Content-Type", "application/x-www-form-urlencoded")
+            
+            try:
+                with urllib.request.urlopen(req, timeout=8) as response:
+                    resp_body = response.read().decode("utf-8")
+                    resp_json = json.loads(resp_body)
+                    self.respond(200, {
+                        "success": True,
+                        "sid": resp_json.get("sid"),
+                        "status": resp_json.get("status")
+                    })
+            except Exception as e:
+                error_msg = str(e)
+                if hasattr(e, "read"):
+                    try:
+                        error_msg += ": " + e.read().decode("utf-8")
+                    except Exception:
+                        pass
+                self.respond(200, {
+                    "success": False,
+                    "code": "API_ERROR",
+                    "error": f"Twilio API error: {error_msg}",
+                    "whatsapp_web_url": whatsapp_web_url
+                })
+            return
+
         if self.path == "/api/food-analyze":
             length = int(self.headers.get("Content-Length", "0"))
             raw = self.rfile.read(length).decode("utf-8") if length else "{}"
@@ -1197,6 +1316,24 @@ class Handler(BaseHTTPRequestHandler):
                 "analyses": analyses,
                 "warning": warning,
             })
+            return
+
+        if self.path == "/api/scan-ultrasound":
+            uploaded = read_multipart_upload(self, "image")
+            if uploaded is None or not uploaded["data"]:
+                self.respond(400, {"error": "Upload an image."})
+                return
+            with tempfile.TemporaryDirectory() as tmpdir:
+                image_path = Path(tmpdir) / (Path(uploaded["filename"]).name or "ultrasound.jpg")
+                image_path.write_bytes(uploaded["data"])
+                try:
+                    import sys
+                    sys.path.append(str(ROOT / "frontend"))
+                    from ultrasound_scanner import analyze_ultrasound
+                    result = analyze_ultrasound(str(image_path))
+                    self.respond(200, result)
+                except Exception as exc:
+                    self.respond(500, {"error": f"Ultrasound analysis failed: {str(exc)}"})
             return
 
         if self.path == "/api/extract-report":

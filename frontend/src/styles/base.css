@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&display=swap');
 
 :root {
+    color-scheme: light;
     font-family: 'Raleway', sans-serif;
     color: #20181a;
     background: #fff;
@@ -17,24 +18,35 @@
     --blue: #236d9f;
 }
 
-* {
+*, *::before, *::after {
     box-sizing: border-box;
+    font-family: 'Raleway', sans-serif;
+}
+
+code, pre, kbd, samp, .logs-terminal, .logs-terminal * {
+    font-family: 'Raleway', sans-serif !important;
 }
 
 html {
     scroll-behavior: smooth;
+    font-size: 19px;
 }
 
 body {
     margin: 0;
     min-width: 320px;
     background: #fff;
+    font-family: 'Raleway', sans-serif;
+    font-size: 19px;
+    line-height: 1.6;
 }
 
 button,
 input,
-select {
-    font: inherit;
+select,
+textarea {
+    font-family: 'Raleway', sans-serif;
+    font-size: inherit;
 }
 
 button,
@@ -89,7 +101,7 @@ a {
 
 .brand-text {
     color: #222;
-    font-size: 30px;
+    font-size: 33px;
     font-weight: 600;
     letter-spacing: -1px;
     line-height: .9;
@@ -100,7 +112,7 @@ a {
 .brand-text small {
     margin-left: 4px;
     color: #737373;
-    font-size: 7px;
+    font-size: 9.5px;
     font-weight: 800;
     letter-spacing: 1.5px;
     line-height: 1.8;
@@ -119,7 +131,7 @@ a {
     background: none;
     color: #30454c;
     font-weight: 600;
-    font-size: 15px;
+    font-size: 18.5px;
     padding: 12px 0;
 }
 
@@ -154,7 +166,7 @@ a {
 .signup-button {
     border-radius: 11px;
     font-weight: 700;
-    font-size: 14px;
+    font-size: 17px;
     padding: 10px 18px;
     border: 1px solid transparent;
 }
@@ -218,7 +230,7 @@ a {
 
 .eyebrow {
     color: var(--maroon);
-    font-size: 11px;
+    font-size: 13.5px;
     font-weight: 800;
     letter-spacing: 1.7px;
     text-transform: uppercase;
@@ -241,7 +253,7 @@ a {
     display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 14px;
+    font-size: 17.5px;
     font-weight: 700;
     min-height: 48px;
 }

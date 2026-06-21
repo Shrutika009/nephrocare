@@ -15,4 +15,4 @@ cd "$ROOT"
 API_PID=$!
 
 cd "$ROOT/frontend"
-npm run dev -- --host 127.0.0.1 --port 5175
+npm run dev -- --host localhost --port 5175

@@ -6,13 +6,17 @@ import { API_BASE_URL, blankPredictionForm, initialPredictionForm, numericPredic
 import { FoodToolsPage, type FoodStage, type FoodTab, type YesNo } from './pages/FoodToolsPage'
 import { HomePage } from './pages/HomePage'
 import { PredictionPage, type PredictionStep } from './pages/PredictionPage'
-import type { FoodAnalysis, FoodPlanResponse, FoodScanResponse, MealPlanResponse, Page, PredictionForm, PredictionResult } from './types'
+import { AuthPage } from './pages/AuthPage'
+import { DashboardPage } from './pages/DashboardPage'
+import { UltrasoundPage } from './pages/UltrasoundPage'
+import type { FoodAnalysis, FoodPlanResponse, FoodScanResponse, MealPlanResponse, Page, PredictionForm, PredictionResult, UltrasoundScanResult } from './types'
 import { reportData } from './utils/format'
 
 function App() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [featuresOpen, setFeaturesOpen] = useState(false)
   const [page, setPage] = useState<Page>('home')
+  const [user, setUser] = useState<{ name: string; email: string } | null>(null)
   const [form, setForm] = useState<PredictionForm>(initialPredictionForm)
   const [result, setResult] = useState<PredictionResult | null>(null)
   const [predictionStep, setPredictionStep] = useState<PredictionStep>('calculator')
@@ -32,6 +36,8 @@ function App() {
   const [foodRecommendations, setFoodRecommendations] = useState<FoodAnalysis[]>([])
   const [mealPlan, setMealPlan] = useState<MealPlanResponse | null>(null)
   const [foodImagePreview, setFoodImagePreview] = useState('')
+  const [ultrasoundResult, setUltrasoundResult] = useState<UltrasoundScanResult | null>(null)
+  const [ultrasoundMetrics, setUltrasoundMetrics] = useState<{ egfr: number; probability: number } | null>(null)
 
   const closeMenus = () => {
     setMobileOpen(false)
@@ -69,7 +75,30 @@ function App() {
         body: JSON.stringify(predictionPayload),
       })
       if (!response.ok) throw new Error('Prediction service is unavailable.')
-      setResult(await response.json())
+      const data = await response.json()
+      setResult(data)
+      
+      try {
+        const historyJson = localStorage.getItem('nephrocare_predictions')
+        const history = historyJson ? JSON.parse(historyJson) : []
+        const newEntry = {
+          timestamp: new Date().toISOString(),
+          egfr: data.kidney_function.egfr_2021 ?? 74,
+          creatinine: Number(data.input.serum_creatinine) || 1.1,
+          uacr: Number(data.input.urine_albumin) || 24,
+          blood_pressure: Number(data.input.blood_pressure) || 80,
+          blood_urea: Number(data.input.blood_urea) || 20,
+          sodium: Number(data.input.sodium) || 138,
+          potassium: Number(data.input.potassium) || 4.4,
+          hemoglobin: Number(data.input.hemoglobin) || 13.5,
+          risk_percent: data.risk.percent,
+          stage: data.kidney_function.egfr_category
+        }
+        localStorage.setItem('nephrocare_predictions', JSON.stringify([newEntry, ...history]))
+      } catch (err) {
+        console.error('Failed to save prediction to history:', err)
+      }
+
       setPredictionStep('result')
       window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 0)
     } catch {
@@ -143,6 +172,19 @@ function App() {
       const data: FoodAnalysis & { error?: string } = await response.json()
       if (!response.ok) throw new Error(data.error || 'Food not found.')
       setFoodCheck(data)
+      try {
+        const historyJson = localStorage.getItem('nephrocare_food_checks')
+        const history = historyJson ? JSON.parse(historyJson) : []
+        const newEntry = {
+          timestamp: new Date().toISOString(),
+          food_name: data.food_name,
+          safety_status: data.status,
+          category: data.category
+        }
+        localStorage.setItem('nephrocare_food_checks', JSON.stringify([newEntry, ...history].slice(0, 5)))
+      } catch (err) {
+        console.error('Failed to save food check to history:', err)
+      }
       setFoodTab('check')
     } catch (err) {
       setFoodError(err instanceof Error ? err.message : 'Food not found.')
@@ -227,9 +269,33 @@ function App() {
       showPage={showPage}
       scrollTo={scrollTo}
       closeMenus={closeMenus}
+      user={user}
+      onLogout={() => setUser(null)}
     />
 
     {page === 'home' && <HomePage showPage={showPage} />}
+    {page === 'login' && <AuthPage initialMode="login" showPage={showPage} onLoginSuccess={setUser} />}
+    {page === 'signup' && <AuthPage initialMode="signup" showPage={showPage} onLoginSuccess={setUser} />}
+    {page === 'dashboard' && <DashboardPage 
+      user={user} 
+      showPage={showPage} 
+      predictionResult={result}
+      predictionForm={form}
+      mealPlan={mealPlan}
+      checkFood={checkFood}
+      foodCheck={foodCheck}
+      foodScan={foodScan}
+      ultrasoundResult={ultrasoundResult}
+      ultrasoundMetrics={ultrasoundMetrics}
+      setFoodTab={setFoodTab}
+    />}
+    {page === 'ultrasound' && <UltrasoundPage 
+      showPage={showPage}
+      result={ultrasoundResult}
+      setResult={setUltrasoundResult}
+      metrics={ultrasoundMetrics}
+      setMetrics={setUltrasoundMetrics}
+    />}
     {page === 'food-tools' && <FoodToolsPage
       foodTab={foodTab}
       setFoodTab={setFoodTab}
