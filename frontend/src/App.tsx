@@ -2,6 +2,7 @@ import type { ChangeEvent, FormEvent } from 'react'
 import { useState } from 'react'
 import { Footer } from './components/Footer'
 import { Header } from './components/Header'
+import { Icon } from './components/Icon'
 import { API_BASE_URL, blankPredictionForm, initialPredictionForm, numericPredictionKeys } from './constants'
 import { FoodToolsPage, type FoodStage, type FoodTab, type YesNo } from './pages/FoodToolsPage'
 import { HomePage } from './pages/HomePage'
@@ -11,6 +12,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { UltrasoundPage } from './pages/UltrasoundPage'
 import { DoctorSummaryPage } from './pages/DoctorSummaryPage'
 import { AlertsPage } from './pages/AlertsPage'
+import { LabReportPage } from './pages/LabReportPage'
 import type { FoodAnalysis, FoodPlanResponse, FoodScanResponse, MealPlanResponse, Page, PredictionForm, PredictionResult, UltrasoundScanResult, Toast, ToastType } from './types'
 import { reportData } from './utils/format'
 import { useEffect } from 'react'
@@ -344,7 +346,14 @@ function App() {
       scrollTo={scrollTo}
       closeMenus={closeMenus}
       user={user}
-      onLogout={() => setUser(null)}
+      onLogout={() => {
+        setUser(null)
+        // Clear demo data so the next login is a fresh slate
+        localStorage.removeItem('nephrocare_predictions')
+        localStorage.removeItem('nephrocare_ultrasound_scans')
+        localStorage.removeItem('nephrocare_symptom_logs')
+        localStorage.removeItem('nephrocare_food_checks')
+      }}
     />
 
     {page === 'home' && <HomePage showPage={showPage} />}
@@ -375,6 +384,12 @@ function App() {
     />}
     {page === 'doctor-summary' && <DoctorSummaryPage showPage={showPage} user={user} />}
     {page === 'alerts' && <AlertsPage showPage={showPage} user={user} addToast={addToast} />}
+    {page === 'lab-report' && <LabReportPage 
+      handleReportUpload={handleReportUpload}
+      uploadStatus={uploadStatus}
+      extractedFields={extractedFields}
+      showPage={showPage}
+    />}
     {page === 'food-tools' && <FoodToolsPage
       foodTab={foodTab}
       setFoodTab={setFoodTab}

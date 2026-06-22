@@ -1,4 +1,4 @@
-export type Page = 'home' | 'ckd-prediction' | 'food-tools' | 'login' | 'signup' | 'dashboard' | 'ultrasound' | 'doctor-summary' | 'alerts'
+export type Page = 'home' | 'ckd-prediction' | 'food-tools' | 'login' | 'signup' | 'dashboard' | 'ultrasound' | 'doctor-summary' | 'alerts' | 'lab-report'
 
 export type PredictionForm = {
   age: number | ''
@@ -37,6 +37,7 @@ export type FoodAnalysis = {
   status: string
   kidney_score: number
   matched_food?: string
+  image_url?: string
 }
 
 export type FoodScanResponse = {
