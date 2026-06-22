@@ -9,8 +9,11 @@ import { PredictionPage, type PredictionStep } from './pages/PredictionPage'
 import { AuthPage } from './pages/AuthPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { UltrasoundPage } from './pages/UltrasoundPage'
-import type { FoodAnalysis, FoodPlanResponse, FoodScanResponse, MealPlanResponse, Page, PredictionForm, PredictionResult, UltrasoundScanResult } from './types'
+import { DoctorSummaryPage } from './pages/DoctorSummaryPage'
+import { AlertsPage } from './pages/AlertsPage'
+import type { FoodAnalysis, FoodPlanResponse, FoodScanResponse, MealPlanResponse, Page, PredictionForm, PredictionResult, UltrasoundScanResult, Toast, ToastType } from './types'
 import { reportData } from './utils/format'
+import { useEffect } from 'react'
 
 function App() {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -38,6 +41,53 @@ function App() {
   const [foodImagePreview, setFoodImagePreview] = useState('')
   const [ultrasoundResult, setUltrasoundResult] = useState<UltrasoundScanResult | null>(null)
   const [ultrasoundMetrics, setUltrasoundMetrics] = useState<{ egfr: number; probability: number } | null>(null)
+  const [ultrasoundPreview, setUltrasoundPreview] = useState<string>('')
+
+  // Global Toasts for Alerts
+  const [toasts, setToasts] = useState<Toast[]>([])
+
+  const addToast = (
+    type: ToastType, 
+    title: string, 
+    message: string,
+    action?: { label: string; url: string }
+  ) => {
+    const id = Math.random().toString(36).substring(2, 9)
+    setToasts(prev => [...prev, { id, type, title, message, action }])
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id))
+    }, action ? 8000 : 4500)
+  }
+
+  // Background Reminder Engine
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(() => {
+      const medReminder = window.localStorage.getItem('nephrocare_med_reminder') === 'true';
+      const foodReminder = window.localStorage.getItem('nephrocare_food_reminder') === 'true';
+      const now = new Date();
+
+      if (medReminder) {
+        const lastMed = window.localStorage.getItem('nephrocare_last_med_alert');
+        // Trigger every 2 minutes for demo purposes (real app: 2-3 hours)
+        if (!lastMed || (now.getTime() - new Date(lastMed).getTime()) > 120000) {
+          addToast('info', 'Medication Reminder', 'It is time to take your prescribed CKD medication.');
+          window.localStorage.setItem('nephrocare_last_med_alert', now.toISOString());
+        }
+      }
+
+      if (foodReminder) {
+        const lastFood = window.localStorage.getItem('nephrocare_last_food_alert');
+        // Trigger every 3 minutes for demo purposes
+        if (!lastFood || (now.getTime() - new Date(lastFood).getTime()) > 180000) {
+          addToast('success', 'Dietary Reminder', 'Have you logged your recent meals? Ensure they align with your kidney-safe diet plan.');
+          window.localStorage.setItem('nephrocare_last_food_alert', now.toISOString());
+        }
+      }
+    }, 10000); // Check every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [user]);
 
   const closeMenus = () => {
     setMobileOpen(false)
@@ -261,6 +311,30 @@ function App() {
   const activeReport = result ? reportData(result) : null
 
   return <div className="site-shell">
+    {/* Global Toast Container */}
+    <div className="toast-container" style={{ zIndex: 9999 }}>
+      {toasts.map(toast => (
+        <div key={toast.id} className={`toast-alert-card ${toast.type}`}>
+          <div className="toast-icon">
+            {toast.type === 'danger' && <Icon name="activity" size={24} />}
+            {toast.type === 'warning' && <Icon name="alert-triangle" size={24} />}
+            {toast.type === 'success' && <Icon name="check-circle" size={24} />}
+            {toast.type === 'info' && <Icon name="info" size={24} />}
+            {toast.type === 'whatsapp' && <Icon name="message-circle" size={24} />}
+          </div>
+          <div className="toast-content">
+            <h4>{toast.title}</h4>
+            <p>{toast.message}</p>
+            {toast.action && (
+              <a href={toast.action.url} target="_blank" rel="noopener noreferrer" className="toast-action-btn">
+                {toast.action.label}
+              </a>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+
     <Header
       mobileOpen={mobileOpen}
       featuresOpen={featuresOpen}
@@ -288,6 +362,7 @@ function App() {
       ultrasoundResult={ultrasoundResult}
       ultrasoundMetrics={ultrasoundMetrics}
       setFoodTab={setFoodTab}
+      addToast={addToast}
     />}
     {page === 'ultrasound' && <UltrasoundPage 
       showPage={showPage}
@@ -295,7 +370,11 @@ function App() {
       setResult={setUltrasoundResult}
       metrics={ultrasoundMetrics}
       setMetrics={setUltrasoundMetrics}
+      imagePreview={ultrasoundPreview}
+      setImagePreview={setUltrasoundPreview}
     />}
+    {page === 'doctor-summary' && <DoctorSummaryPage showPage={showPage} user={user} />}
+    {page === 'alerts' && <AlertsPage showPage={showPage} user={user} addToast={addToast} />}
     {page === 'food-tools' && <FoodToolsPage
       foodTab={foodTab}
       setFoodTab={setFoodTab}
