@@ -128,11 +128,6 @@ function PredictionCalculator({
     <section className="calculator-shell">
       <div className="calculator-panel">
         <form className="calculator-form" onSubmit={submitPrediction}>
-          <div className="report-upload">
-            <div><span className="eyebrow">Optional report autofill</span><p>Upload a PDF, image, text, or CSV report to prefill matching values.</p></div>
-            <label><Icon name="report" size={20} /> Choose report<input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv" onChange={handleReportUpload} /></label>
-          </div>
-          {uploadStatus && <p className="upload-status">{uploadStatus}{extractedFields.length ? ` Fields: ${extractedFields.map(field => labInputLabels[field as keyof PredictionForm] ?? field).join(', ')}.` : ''}</p>}
           <div className="calculator-grid">
             {labInputs.map(([key, label, unit]) => key === 'sex' || key === 'hypertension' || key === 'diabetes_mellitus'
               ? <label key={key}><span>{label}</span><select required value={form[key]} onChange={event => updateChoice(key, event.target.value)}><option value="" disabled>Select</option>{key === 'sex' ? <><option value="female">Female</option><option value="male">Male</option></> : <><option value="no">No</option><option value="yes">Yes</option></>}</select></label>

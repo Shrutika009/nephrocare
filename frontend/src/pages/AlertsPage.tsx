@@ -76,7 +76,7 @@ export function AlertsPage({ showPage, user, addToast }: AlertsPageProps) {
       const data = await response.json()
       if (data.success) {
         addToast('success', 'Test Sent', `Test message sent to ${phone}`)
-        setWhatsappLogs([{ timestamp: new Date().toISOString(), title: 'Test Alert', message: 'Connection Successful', status: 'Sent' }, ...whatsappLogs].slice(0, 50))
+        setWhatsappLogs([{ timestamp: new Date().toISOString(), title: 'Test Alert', message: 'Connection Successful', status: 'Sent' as const }, ...whatsappLogs].slice(0, 50))
       } else {
         addToast(
           'whatsapp',
@@ -84,12 +84,12 @@ export function AlertsPage({ showPage, user, addToast }: AlertsPageProps) {
           `Message simulated to ${phone}`,
           data.whatsapp_web_url ? { label: 'Send via WhatsApp Web', url: data.whatsapp_web_url } : undefined
         )
-        setWhatsappLogs([{ timestamp: new Date().toISOString(), title: 'Test Alert', message: 'Connection Simulated', status: 'Simulated' }, ...whatsappLogs].slice(0, 50))
+        setWhatsappLogs([{ timestamp: new Date().toISOString(), title: 'Test Alert', message: 'Connection Simulated', status: 'Simulated' as const }, ...whatsappLogs].slice(0, 50))
       }
     } catch (err) {
       console.error(err)
       addToast('danger', 'Test Failed', 'Could not reach the WhatsApp API.')
-      setWhatsappLogs([{ timestamp: new Date().toISOString(), title: 'Test Alert', message: 'Connection Failed', status: 'Failed' }, ...whatsappLogs].slice(0, 50))
+      setWhatsappLogs([{ timestamp: new Date().toISOString(), title: 'Test Alert', message: 'Connection Failed', status: 'Failed' as const }, ...whatsappLogs].slice(0, 50))
     }
   }
 
@@ -159,17 +159,19 @@ export function AlertsPage({ showPage, user, addToast }: AlertsPageProps) {
                 />
               </div>
 
-              <label className="toggle-switch inline-toggle">
-                <input 
-                  type="checkbox" 
-                  checked={whatsappEnabled} 
-                  onChange={e => setWhatsappEnabled(e.target.checked)} 
-                />
-                <span className="slider round"></span>
+              <div className="inline-toggle">
+                <label className="toggle-switch">
+                  <input 
+                    type="checkbox" 
+                    checked={whatsappEnabled} 
+                    onChange={e => setWhatsappEnabled(e.target.checked)} 
+                  />
+                  <span className="slider round"></span>
+                </label>
                 <span style={{ marginLeft: '12px', fontWeight: 'bold', color: whatsappEnabled ? 'var(--deep)' : '#64748b' }}>
                   {whatsappEnabled ? 'WhatsApp Alerts Enabled' : 'Enable WhatsApp Alerts'}
                 </span>
-              </label>
+              </div>
               
               <button className="btn-test" onClick={testWhatsApp} disabled={!whatsappEnabled}>
                 Send Test Alert

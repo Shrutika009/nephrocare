@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-export type IconName = 'activity' | 'alert' | 'arrow' | 'camera' | 'chart' | 'check' | 'chef' | 'clipboard' | 'food' | 'heart' | 'lab' | 'menu' | 'message' | 'report' | 'shield' | 'spark' | 'stethoscope' | 'user' | 'x' | 'log-out' | 'alert-triangle' | 'check-circle' | 'info' | 'message-circle' | 'file-text' | 'search' | 'calendar'
+export type IconName = 'activity' | 'alert' | 'arrow' | 'camera' | 'chart' | 'check' | 'chef' | 'clipboard' | 'food' | 'heart' | 'lab' | 'menu' | 'message' | 'report' | 'shield' | 'spark' | 'stethoscope' | 'user' | 'x' | 'log-out' | 'alert-triangle' | 'check-circle' | 'info' | 'message-circle' | 'file-text' | 'search' | 'calendar' | 'clock'
 
 const icons: Record<IconName, ReactNode> = {
   activity: <><path d="M3 12h4l2-7 4 14 2-7h6" /></>,
@@ -12,6 +12,7 @@ const icons: Record<IconName, ReactNode> = {
   check: <path d="m5 12 4 4L19 6" />,
   'check-circle': <><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></>,
   chef: <><path d="M6 13.9V19h12v-5.1" /><path d="M6.5 14a4 4 0 0 1 1-7.9 5 5 0 0 1 9 0 4 4 0 0 1 1 7.9" /><path d="M8 19v2h8v-2" /></>,
+  clock: <><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></>,
   clipboard: <><rect width="14" height="18" x="5" y="3" rx="2" /><path d="M9 3V1h6v2" /><path d="m9 12 2 2 4-4" /></>,
   food: <><path d="M7 3v7" /><path d="M4 3v4a3 3 0 0 0 6 0V3" /><path d="M7 10v11" /><path d="M17 3c-2 2-3 5-3 8h5V3h-2Z" /><path d="M19 11v10" /></>,
   heart: <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z" />,

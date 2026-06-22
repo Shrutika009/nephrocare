@@ -265,55 +265,13 @@ def load_food_data():
     import pandas as pd
 
     food_frames = [pd.read_csv(FOOD_DATA)]
+    
+    # Intentionally skipping USDA dataset to enforce Indian Food Only policy
+    # if USDA_FOOD_DATA.exists() and USDA_NUTRIENT_DATA.exists():
+    # ...
 
-    if USDA_FOOD_DATA.exists() and USDA_NUTRIENT_DATA.exists():
-        foods = pd.read_csv(
-            USDA_FOOD_DATA,
-            dtype={"fdc_id": str, "food_category_id": str},
-            usecols=["fdc_id", "description", "food_category_id"],
-        )
-        nutrients = pd.read_csv(
-            USDA_NUTRIENT_DATA,
-            dtype={"fdc_id": str, "nutrient_id": str},
-            usecols=["fdc_id", "nutrient_id", "amount"],
-        )
-        nutrients = nutrients[nutrients["nutrient_id"].isin(USDA_NUTRIENT_IDS.values())]
-        nutrient_table = nutrients.pivot_table(
-            index="fdc_id",
-            columns="nutrient_id",
-            values="amount",
-            aggfunc="first",
-        )
-        nutrient_table.columns = nutrient_table.columns.astype(str)
-        nutrient_table = nutrient_table.rename(columns={nutrient_id: name for name, nutrient_id in USDA_NUTRIENT_IDS.items()})
-        usda_foods = foods.join(nutrient_table, on="fdc_id")
-
-        if USDA_CATEGORY_DATA.exists():
-            categories = pd.read_csv(
-                USDA_CATEGORY_DATA,
-                dtype={"wweia_food_category": str},
-            ).rename(
-                columns={
-                    "wweia_food_category": "food_category_id",
-                    "wweia_food_category_description": "category",
-                }
-            )
-            usda_foods = usda_foods.merge(categories, on="food_category_id", how="left")
-        else:
-            usda_foods["category"] = "USDA/FNDDS foods"
-
-        usda_foods = usda_foods.rename(columns={"description": "food_name"})
-        for column in USDA_NUTRIENT_IDS:
-            usda_foods[column] = pd.to_numeric(usda_foods[column], errors="coerce").fillna(0)
-        usda_foods["category"] = usda_foods["category"].fillna("USDA/FNDDS foods")
-        usda_foods["diet_type"] = ""
-        usda_foods["source"] = "USDA/FNDDS"
-        usda_foods = usda_foods[
-            ["food_name", "category", "protein_g", "energy_kcal", "potassium_mg", "phosphorus_mg", "sodium_mg", "diet_type", "source"]
-        ]
-        food_frames.append(usda_foods)
-
-    FOOD_CACHE = pd.concat(food_frames, ignore_index=True).drop_duplicates(subset=["food_name"], keep="first")
+    df = pd.concat(food_frames, ignore_index=True)
+    FOOD_CACHE = df.drop_duplicates(subset=["food_name"], keep="first")
     return FOOD_CACHE
 
 
@@ -429,9 +387,18 @@ def keyword_rank(row: Any, keywords: list[str]) -> int:
 
 
 def classify_food(row: Any) -> dict[str, Any]:
+    food_name = str(row["food_name"])
+    display_name = display_food_name(row)
+    
+    # Generate dynamic image URL using a placeholder service
+    import urllib.parse
+    image_query = urllib.parse.quote(display_name.split(' ')[0] + " indian food")
+    image_url = f"https://loremflickr.com/400/300/{image_query}?lock={abs(hash(food_name)) % 1000}"
+
     return {
-        "food_name": str(row["food_name"]),
-        "display_name": display_food_name(row),
+        "food_name": food_name,
+        "display_name": display_name,
+        "image_url": image_url,
         "category": str(row.get("category", "")),
         "protein_g": round(float(row["protein_g"]), 2),
         "energy_kcal": round(float(row["energy_kcal"]), 2),

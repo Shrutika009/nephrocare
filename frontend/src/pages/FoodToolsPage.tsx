@@ -323,10 +323,12 @@ function MealPlanPanel(props: Pick<FoodToolsPageProps, 'foodStage' | 'setFoodSta
     <FoodFilters {...props} actionLabel="Build plan" disabled={props.foodLoading} onAction={props.loadMealPlan} />
     {props.mealPlan ? <div className="meal-plan">
       {(['breakfast', 'lunch', 'snack', 'dinner'] as const).map(slot => <div key={slot} className="meal-slot">
-        <b>{slot}</b>
-        <div className="meal-foods">{props.mealPlan?.[slot].map(item => <span key={item.food_name}>{item.food_name}</span>)}</div>
+        <h3 className="meal-slot-title">{slot.charAt(0).toUpperCase() + slot.slice(1)}</h3>
+        <div className="food-analysis-grid">
+          {props.mealPlan?.[slot].map(item => <FoodAnalysisCard key={item.food_name} item={item} />)}
+        </div>
       </div>)}
-      <ul>{props.mealPlan.notes.map(note => <li key={note}>{note}</li>)}</ul>
+      <ul className="meal-plan-notes">{props.mealPlan.notes.map(note => <li key={note}>{note}</li>)}</ul>
     </div> : <div className="food-empty-state inline">
       <Icon name="chef" size={30} />
       <strong>No meal plan yet</strong>
@@ -351,23 +353,26 @@ function FoodAnalysisGrid({ items, onPick }: { items: FoodAnalysis[]; onPick?: (
 function FoodAnalysisCard({ item, onPick }: { item: FoodAnalysis; onPick?: (foodName: string) => void }) {
   const label = item.display_name || item.food_name
   return <article className={`food-analysis-card ${statusClass(item.status)}`} role="listitem">
-    <div className="food-analysis-top">
-      <div>
-        <strong>{label}</strong>
-        <small>{item.category || item.matched_food || 'Food item'}</small>
+    {item.image_url && <div className="food-analysis-image-wrapper"><img src={item.image_url} alt={label} loading="lazy" /></div>}
+    <div className="food-analysis-content">
+      <div className="food-analysis-top">
+        <div>
+          <strong>{label}</strong>
+          <small>{item.category || item.matched_food || 'Food item'}</small>
+        </div>
+        <span className="status-badge">{item.status}</span>
       </div>
-      <span>{item.status}</span>
+      <div className="food-score">
+        <b>{item.kidney_score}</b>
+        <small>score</small>
+      </div>
+      <div className="food-nutrients">
+        <span><small>K</small><b>{item.potassium_mg} mg</b></span>
+        <span><small>P</small><b>{item.phosphorus_mg} mg</b></span>
+        <span><small>Na</small><b>{item.sodium_mg} mg</b></span>
+        <span><small>Protein</small><b>{item.protein_g} g</b></span>
+      </div>
+      {onPick && <button type="button" onClick={() => onPick(label)}>Check details</button>}
     </div>
-    <div className="food-score">
-      <b>{item.kidney_score}</b>
-      <small>score</small>
-    </div>
-    <div className="food-nutrients">
-      <span><small>K</small><b>{item.potassium_mg} mg</b></span>
-      <span><small>P</small><b>{item.phosphorus_mg} mg</b></span>
-      <span><small>Na</small><b>{item.sodium_mg} mg</b></span>
-      <span><small>Protein</small><b>{item.protein_g} g</b></span>
-    </div>
-    {onPick && <button type="button" onClick={() => onPick(label)}>Check details</button>}
   </article>
 }

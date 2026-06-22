@@ -37,11 +37,7 @@
     }
 
     .food-analysis-card {
-        grid-template-columns: minmax(220px, 1fr) minmax(104px, max-content);
-    }
-
-    .food-nutrients {
-        grid-column: 1 / -1;
+        gap: 12px;
     }
 }
 
@@ -374,9 +370,8 @@
     }
 
     .food-analysis-card {
-        grid-template-columns: 1fr;
         gap: 10px;
-        padding: 16px 0;
+        padding: 16px;
     }
 
     .food-analysis-top {

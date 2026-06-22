@@ -83,12 +83,16 @@ export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpe
             type="button" 
             key={feature.title} 
             onClick={() => {
-              if (feature.title === 'CKD Risk Prediction' || feature.title === 'Lab Report Analysis') {
+              if (feature.title === 'CKD Risk Prediction') {
                 showPage('ckd-prediction');
+              } else if (feature.title === 'Lab Report Analysis') {
+                showPage('lab-report');
               } else if (feature.title === 'Food') {
                 showPage('food-tools');
               } else if (feature.title === 'Ultrasound Analysis') {
                 showPage('ultrasound');
+              } else if (feature.title === 'Smart Alerts') {
+                showPage('alerts');
               } else if (
                 feature.title === 'Monitoring Dashboard' || 
                 feature.title === 'Early Warning Alerts' || 

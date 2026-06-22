@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Icon } from '../components/Icon'
-import type { Page, PredictionResult, PredictionForm, MealPlanResponse, FoodAnalysis, FoodScanResponse, UltrasoundScanResult } from '../types'
+import type { Page, PredictionResult, PredictionForm, MealPlanResponse, FoodAnalysis, FoodScanResponse, UltrasoundScanResult, ToastType } from '../types'
 import type { FoodTab } from './FoodToolsPage'
 import { API_BASE_URL } from '../constants'
 import { PieChart, Pie, Cell, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -90,6 +90,7 @@ type DashboardPageProps = {
   ultrasoundResult?: UltrasoundScanResult | null
   ultrasoundMetrics?: any
   setFoodTab?: (tab: FoodTab) => void
+  addToast: (type: ToastType, title: string, message: string, action?: { label: string; url: string }) => void
 }
 
 interface Toast {
@@ -271,7 +272,7 @@ export function DashboardPage({
     <main className="dashboard-page">
 
       <header className="dashboard-header">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
           <div>
             <span className="dashboard-badge">PATIENT PORTAL</span>
             <h1>Welcome back, {user.name}</h1>

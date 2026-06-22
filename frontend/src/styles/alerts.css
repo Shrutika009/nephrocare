@@ -19,6 +19,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    letter-spacing: -1.5px;
 }
 
 .alerts-header p {

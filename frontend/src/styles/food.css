@@ -112,32 +112,40 @@
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 10px;
-    margin: 0 auto 30px;
-    padding: 0;
+    gap: 12px;
+    margin: 0 auto 40px;
+    padding: 8px;
     width: fit-content;
     max-width: 100%;
-    border: 0;
-    background: transparent;
-    box-shadow: none;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    border-radius: 16px;
+    background: #f4f6f8;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
 }
 
 .nutrition-tabs button {
-    min-height: 40px;
+    min-height: 64px;
     border: 0;
-    border-radius: 8px;
+    border-radius: 12px;
     background: transparent;
     color: #083b66;
-    padding: 9px 16px;
-    font-size: 13px;
-    font-weight: 900;
+    padding: 16px 32px;
+    font-size: 20px;
+    font-weight: 700;
     cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nutrition-tabs button:hover {
+    background: rgba(8, 59, 102, 0.04);
 }
 
 .nutrition-tabs button.active {
     background: var(--maroon);
     border-color: var(--maroon);
     color: white;
+    box-shadow: 0 6px 12px rgba(160, 20, 50, 0.25);
+    transform: translateY(-1px);
 }
 
 .nutrition-section-page {
@@ -473,28 +481,61 @@
 
 .food-analysis-grid {
     display: grid;
-    gap: 0;
-    margin-top: 20px;
-    border-top: 1px solid #e7edf2;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px;
+    margin-top: 24px;
 }
 
 .food-analysis-card {
-    display: grid;
-    grid-template-columns: minmax(160px, 1fr) minmax(104px, max-content) minmax(300px, 1.3fr);
-    column-gap: 20px;
-    row-gap: 12px;
-    align-items: center;
-    padding: 18px 0;
-    border-bottom: 1px solid #e7edf2;
-    background: transparent;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 20px;
+    border: 1px solid #e7edf2;
+    border-radius: 16px;
+    background: white;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: hidden;
+    position: relative;
+}
+
+.food-analysis-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 25px rgba(0, 0, 0, 0.1);
+}
+
+.food-analysis-image-wrapper {
+    width: calc(100% + 40px);
+    margin: -20px -20px 0;
+    height: 180px;
+    overflow: hidden;
+    background: #f4f6f8;
+}
+
+.food-analysis-image-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s ease;
+}
+
+.food-analysis-card:hover .food-analysis-image-wrapper img {
+    transform: scale(1.05);
+}
+
+.food-analysis-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    flex: 1;
 }
 
 .food-analysis-top {
     display: flex;
-    justify-content: flex-start;
-    gap: 12px;
+    justify-content: space-between;
     align-items: flex-start;
-    min-width: 0;
+    gap: 12px;
 }
 
 .food-analysis-top strong {
@@ -523,12 +564,25 @@
     text-transform: uppercase;
 }
 
-.food-analysis-card.safe .food-analysis-top span {
+.food-analysis-card.safe .food-analysis-top .status-badge {
     color: #0b7f72;
+    background: rgba(11, 127, 114, 0.1);
+    padding: 4px 8px;
+    border-radius: 6px;
 }
 
-.food-analysis-card.moderate .food-analysis-top span {
+.food-analysis-card.moderate .food-analysis-top .status-badge {
     color: #a26b00;
+    background: rgba(162, 107, 0, 0.1);
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+.food-analysis-card.avoid .food-analysis-top .status-badge {
+    color: var(--maroon);
+    background: rgba(160, 20, 50, 0.1);
+    padding: 4px 8px;
+    border-radius: 6px;
 }
 
 .food-score {
@@ -581,18 +635,55 @@
     text-transform: uppercase;
 }
 
-.food-analysis-card>button {
-    grid-column: 1 / -1;
-    justify-self: start;
-    min-height: 34px;
-    margin-top: -4px;
+.food-analysis-card>button,
+.food-analysis-card button {
+    margin-top: auto;
+    width: 100%;
+    min-height: 40px;
     border: 1px solid #d8e9f6;
     border-radius: 8px;
     background: #f5fbff;
     color: #083b66;
-    padding: 0 12px;
-    font-size: 12px;
-    font-weight: 900;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.food-analysis-card button:hover {
+    background: #e6f4ff;
+}
+
+/* Meal Plan Styles */
+.meal-slot {
+    margin-bottom: 40px;
+}
+
+.meal-slot-title {
+    font-size: 24px;
+    color: #083b66;
+    margin: 0 0 20px;
+    font-weight: 800;
+    border-bottom: 2px solid #e7edf2;
+    padding-bottom: 8px;
+}
+
+.meal-plan-notes {
+    margin-top: 40px;
+    padding: 24px;
+    background: #fff8eb;
+    border-radius: 12px;
+    list-style-position: inside;
+    border: 1px solid rgba(162, 107, 0, 0.1);
+}
+
+.meal-plan-notes li {
+    margin-bottom: 10px;
+    color: #374151;
+    font-size: 15px;
+    line-height: 1.5;
+}
+.meal-plan-notes li:last-child {
+    margin-bottom: 0;
 }
 
 .nutrition-error {
