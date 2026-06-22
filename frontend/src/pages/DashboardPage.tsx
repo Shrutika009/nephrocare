@@ -1,10 +1,95 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Icon } from '../components/Icon'
-import type { Page } from '../types'
+import type { Page, PredictionResult, PredictionForm, MealPlanResponse, FoodAnalysis, FoodScanResponse, UltrasoundScanResult } from '../types'
+import type { FoodTab } from './FoodToolsPage'
+import { API_BASE_URL } from '../constants'
+import { PieChart, Pie, Cell, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+
+// Local storage hook
+function useLocalStorage<T>(key: string, initialValue: T) {
+  const [storedValue, setStoredValue] = useState<T>(() => {
+    try {
+      const item = window.localStorage.getItem(key)
+      return item ? JSON.parse(item) : initialValue
+    } catch (error) {
+      console.warn(`Error reading localStorage key "${key}":`, error)
+      return initialValue
+    }
+  })
+
+  const setValue = (value: T | ((val: T) => T)) => {
+    try {
+      const valueToStore = value instanceof Function ? value(storedValue) : value
+      setStoredValue(valueToStore)
+      window.localStorage.setItem(key, JSON.stringify(valueToStore))
+    } catch (error) {
+      console.warn(`Error setting localStorage key "${key}":`, error)
+    }
+  }
+
+  return [storedValue, setValue] as const
+}
+
+interface PredictionHistory {
+  timestamp: string;
+  egfr: number;
+  creatinine: number;
+  uacr: number;
+  blood_pressure: number;
+  blood_urea: number;
+  sodium: number;
+  potassium: number;
+  hemoglobin: number;
+  risk_percent: number;
+  stage: string;
+}
+
+interface UltrasoundHistory {
+  timestamp: string;
+  severity: string;
+  image_quality: string;
+  kidney_size_mm?: number;
+  cortical_thickness_mm?: number;
+  observations: string[];
+  recommendation: string;
+  image_url?: string;
+}
+
+interface SymptomLog {
+  timestamp: string;
+  fatigue: 'none' | 'mild' | 'moderate' | 'severe';
+  swelling: 'none' | 'mild' | 'moderate' | 'severe';
+  nausea: 'none' | 'mild' | 'moderate' | 'severe';
+  appetite: 'none' | 'mild' | 'moderate' | 'severe';
+  urination: 'none' | 'mild' | 'moderate' | 'severe';
+}
+
+interface FoodCheckLog {
+  timestamp: string;
+  food_name: string;
+  safety_status: string;
+  category: string;
+}
+
+interface WhatsAppLog {
+  timestamp: string;
+  title: string;
+  message: string;
+  status: string;
+}
 
 type DashboardPageProps = {
   user: { name: string; email: string } | null
   showPage: (page: Page) => void
+  predictionResult?: PredictionResult | null
+  predictionForm?: PredictionForm
+  mealPlan?: MealPlanResponse | null
+  checkFood?: any
+  foodCheck?: FoodAnalysis | null
+  foodScan?: FoodScanResponse | null
+  ultrasoundResult?: UltrasoundScanResult | null
+  ultrasoundMetrics?: any
+  setFoodTab?: (tab: FoodTab) => void
 }
 
 interface Toast {
@@ -18,53 +103,63 @@ interface Toast {
   }
 }
 
-export function DashboardPage({ user, showPage }: DashboardPageProps) {
-  // Local state for sliders - updates instantly in real time
-  const [egfr, setEgfr] = useState(74)
-  const [creatinine, setCreatinine] = useState(1.1)
-  const [systolic, setSystolic] = useState(118)
-  const [diastolic, setDiastolic] = useState(76)
-  const [uacr, setUacr] = useState(24)
+// Trend Line Chart Component
+const SparkLine = ({ data, color, height = 40, label }: { data: number[], color: string, height?: number, label: string }) => {
+  if (data.length < 2) return <div className="empty-chart">Not enough data to plot {label}</div>;
+  
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min === 0 ? 1 : max - min;
+  const padding = 5;
+  const w = 200;
+  const h = height - padding * 2;
 
-  // Symptom tracker state
-  const [symptoms, setSymptoms] = useState<Record<string, 'none' | 'mild' | 'moderate' | 'severe'>>({
-    fatigue: 'mild',
-    swelling: 'none',
-    urination: 'none',
-    appetite: 'none',
-    nausea: 'none'
-  })
+  const points = data.map((d, i) => {
+    const x = (i / (data.length - 1)) * w;
+    const y = height - padding - ((d - min) / range) * h;
+    return `${x},${y}`;
+  }).join(' ');
 
-  // Toasts state for real-time notifications
-  const [toasts, setToasts] = useState<Toast[]>([])
+  return (
+    <div className="sparkline-container">
+      <div className="sparkline-label">{label}</div>
+      <svg width="100%" height={height} viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none">
+        <polyline fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" points={points} />
+      </svg>
+      <div className="sparkline-value-range">
+        <span>{data[data.length - 1].toFixed(1)}</span>
+      </div>
+    </div>
+  );
+};
 
-  // WhatsApp assistant settings state
-  const [phone, setPhone] = useState('')
-  const [whatsappEnabled, setWhatsappEnabled] = useState(false)
-  const [whatsappSaving, setWhatsappSaving] = useState(false)
-  const [whatsappMsg, setWhatsappMsg] = useState('')
-
-  // Doctor Report modal state
-  const [generatingReport, setGeneratingReport] = useState(false)
-  const [showReportModal, setShowReportModal] = useState(false)
-
-  // Helper to add toast notifications
-  const addToast = (
-    type: 'danger' | 'warning' | 'info' | 'success' | 'whatsapp', 
-    title: string, 
-    message: string,
-    action?: { label: string; url: string }
-  ) => {
-    const id = Math.random().toString(36).substring(2, 9)
-    setToasts(prev => [...prev, { id, type, title, message, action }])
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id))
-    }, action ? 8000 : 4500)
-  }
-
-  // Trigger companion WhatsApp alert if enabled
+export function DashboardPage({ 
+  user, 
+  showPage, 
+  predictionResult, 
+  predictionForm,
+  mealPlan,
+  checkFood,
+  foodCheck,
+  foodScan,
+  ultrasoundResult,
+  ultrasoundMetrics,
+  setFoodTab,
+  addToast
+}: DashboardPageProps) {
+  // Histories
+  const [predictions] = useLocalStorage<PredictionHistory[]>('nephrocare_predictions', [])
+  const [ultrasounds] = useLocalStorage<UltrasoundHistory[]>('nephrocare_ultrasound_scans', [])
+  const [symptomLogs, setSymptomLogs] = useLocalStorage<SymptomLog[]>('nephrocare_symptom_logs', [])
+  const [foodChecks, setFoodChecks] = useLocalStorage<FoodCheckLog[]>('nephrocare_food_checks', [])
   const sendWhatsAppNotification = async (title: string, message: string) => {
-    if (!whatsappEnabled || !phone) return
+    const whatsappEnabled = JSON.parse(window.localStorage.getItem('nephrocare_whatsapp_enabled') || 'false');
+    const phoneRaw = window.localStorage.getItem('nephrocare_phone') || '';
+    const phone = phoneRaw.replace(/"/g, ''); // Fix json stringified quotes if any
+    
+    if (!whatsappEnabled || !phone) {
+      return;
+    }
 
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -80,18 +175,18 @@ export function DashboardPage({ user, showPage }: DashboardPageProps) {
       })
       const data = await response.json()
       if (data.success) {
-        addToast(
-          'whatsapp',
-          'WhatsApp Alert Sent',
-          `📱 Sent to ${phone}: ${title} - ${message}`
-        )
+        addToast('whatsapp', 'WhatsApp Alert Sent', `📱 Sent to ${phone}: ${title}`)
+        const wLogs = JSON.parse(window.localStorage.getItem('nephrocare_whatsapp_history') || '[]');
+        window.localStorage.setItem('nephrocare_whatsapp_history', JSON.stringify([{ timestamp: new Date().toISOString(), title, message, status: 'Sent' }, ...wLogs].slice(0, 50)));
       } else {
         addToast(
           'whatsapp',
           'WhatsApp Simulated',
-          `📱 [Simulated to ${phone}]: ${title} - ${message}`,
+          `📱 [Simulated to ${phone}]: ${title}`,
           data.whatsapp_web_url ? { label: 'Send via WhatsApp Web', url: data.whatsapp_web_url } : undefined
         )
+        const wLogs = JSON.parse(window.localStorage.getItem('nephrocare_whatsapp_history') || '[]');
+        window.localStorage.setItem('nephrocare_whatsapp_history', JSON.stringify([{ timestamp: new Date().toISOString(), title, message, status: 'Simulated' }, ...wLogs].slice(0, 50)));
       }
     } catch (err) {
       console.error('Error dispatching WhatsApp alert:', err)
@@ -100,82 +195,57 @@ export function DashboardPage({ user, showPage }: DashboardPageProps) {
       addToast(
         'whatsapp',
         'WhatsApp Simulated',
-        `📱 [Simulated to ${phone}]: ${title} - ${message}`,
+        `📱 [Simulated to ${phone}]: ${title}`,
         { label: 'Send via WhatsApp Web', url: webUrl }
       )
+      const wLogs = JSON.parse(window.localStorage.getItem('nephrocare_whatsapp_history') || '[]');
+      window.localStorage.setItem('nephrocare_whatsapp_history', JSON.stringify([{ timestamp: new Date().toISOString(), title, message, status: 'Failed' }, ...wLogs].slice(0, 50)));
     }
   }
 
-  // Track metric changes to fire real-time clinical alerts
-  const handleEgfrChange = (val: number) => {
-    const prev = egfr
-    setEgfr(val)
-    if (val < 60 && prev >= 60) {
-      addToast('danger', 'Critical eGFR Drop', `eGFR decreased to ${val} mL/min (Stage 3+ range). Impaired kidney clearance.`)
-      sendWhatsAppNotification('Critical eGFR Drop', `eGFR is now ${val} mL/min. Please avoid NSAIDs and check in with your clinic.`)
-    } else if (val >= 60 && prev < 60) {
-      addToast('success', 'eGFR Recovered', `eGFR is back in the stable range (${val} mL/min).`)
-      sendWhatsAppNotification('eGFR Recovered', `eGFR is back in the stable range (${val} mL/min).`)
+  // Symptom handling
+  const latestSymptoms = symptomLogs[0] || { fatigue: 'none', swelling: 'none', nausea: 'none', appetite: 'none', urination: 'none' };
+  const handleSymptomChange = (symptom: keyof Omit<SymptomLog, 'timestamp'>, severity: 'none' | 'mild' | 'moderate' | 'severe') => {
+    const newLog: SymptomLog = {
+      ...latestSymptoms,
+      timestamp: new Date().toISOString(),
+      [symptom]: severity
+    };
+    setSymptomLogs([newLog, ...symptomLogs]);
+    if (severity === 'severe') {
+      sendWhatsAppNotification(`Severe ${symptom.toUpperCase()}`, `You logged severe ${symptom}. Please contact your clinical coordinator immediately.`);
     }
   }
 
-  const handleCreatinineChange = (val: number) => {
-    const prev = creatinine
-    setCreatinine(val)
-    if (val > 1.3 && prev <= 1.3) {
-      addToast('warning', 'Elevated Creatinine', `Creatinine has reached ${val.toFixed(1)} mg/dL, exceeding target range.`)
-      sendWhatsAppNotification('Elevated Creatinine', `Creatinine has reached ${val.toFixed(1)} mg/dL. Monitor levels closely.`)
-    } else if (val <= 1.3 && prev > 1.3) {
-      addToast('success', 'Creatinine Normal', `Creatinine levels stabilized at ${val.toFixed(1)} mg/dL.`)
-      sendWhatsAppNotification('Creatinine Normal', `Creatinine levels stabilized at ${val.toFixed(1)} mg/dL.`)
+  // Quick Food Check inside Dashboard
+  const [quickFoodQuery, setQuickFoodQuery] = useState('');
+  const [quickFoodChecking, setQuickFoodChecking] = useState(false);
+  const handleQuickFoodCheck = async () => {
+    if (!quickFoodQuery.trim()) return;
+    setQuickFoodChecking(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+      const res = await fetch(`${apiUrl}/api/check-food?query=${encodeURIComponent(quickFoodQuery)}`)
+      if (res.ok) {
+        const data = await res.json();
+        const topFood = data.analyses?.[0];
+        if (topFood) {
+          const newLog: FoodCheckLog = {
+            timestamp: new Date().toISOString(),
+            food_name: topFood.food_name,
+            safety_status: topFood.status,
+            category: topFood.category
+          };
+          setFoodChecks([newLog, ...foodChecks]);
+        }
+      }
+    } catch (err) {
+      console.error(err);
     }
+    setQuickFoodChecking(false);
+    setQuickFoodQuery('');
   }
 
-  const handleSystolicChange = (val: number) => {
-    const prev = systolic
-    setSystolic(val)
-    if (val >= 140 && prev < 140) {
-      addToast('danger', 'Hypertension Detected', `Blood pressure rose to ${val}/${diastolic} mmHg (Hypertensive Stage 2).`)
-      sendWhatsAppNotification('Hypertension Detected', `Blood pressure rose to ${val}/${diastolic} mmHg. Rest and check again.`)
-    } else if (val < 130 && prev >= 130) {
-      addToast('success', 'Systolic Pressure Normal', `Systolic pressure returned to a safe ${val} mmHg.`)
-    }
-  }
-
-  const handleDiastolicChange = (val: number) => {
-    const prev = diastolic
-    setDiastolic(val)
-    if (val >= 90 && prev < 90) {
-      addToast('danger', 'Diastolic Hypertension', `Blood pressure is high at ${systolic}/${val} mmHg.`)
-      sendWhatsAppNotification('Diastolic Hypertension', `Blood pressure is high at ${systolic}/${val} mmHg.`)
-    } else if (val < 80 && prev >= 80) {
-      addToast('success', 'Diastolic Pressure Normal', `Diastolic pressure returned to a safe ${val} mmHg.`)
-    }
-  }
-
-  const handleUacrChange = (val: number) => {
-    const prev = uacr
-    setUacr(val)
-    if (val >= 30 && prev < 30) {
-      addToast('warning', 'Microalbuminuria Detected', `Urine ACR rose to ${val} mg/g, indicating protein leakage.`)
-      sendWhatsAppNotification('Microalbuminuria Detected', `Urine ACR rose to ${val} mg/g. Early sign of kidney stress.`)
-    } else if (val < 30 && prev >= 30) {
-      addToast('success', 'Urine ACR Stabilized', `Urine ACR returned to healthy levels (${val} mg/g).`)
-    }
-  }
-
-  const handleSymptomToggle = (symptom: string, severity: 'none' | 'mild' | 'moderate' | 'severe') => {
-    const prev = symptoms[symptom]
-    setSymptoms(prevSymptoms => ({ ...prevSymptoms, [symptom]: severity }))
-    if (severity === 'severe' && prev !== 'severe') {
-      addToast('danger', `Severe ${symptom.toUpperCase()} Reported`, 'Clinical coordinator flagged severe symptom. Seek medical input.')
-      sendWhatsAppNotification(`Severe ${symptom.toUpperCase()} Alert`, `You marked severe ${symptom} on your portal. Contact clinic.`)
-    } else if (severity === 'none' && prev === 'severe') {
-      addToast('success', `${symptom.toUpperCase()} Cleared`, 'Symptom resolved.')
-    }
-  }
-
-  // Auth Wall
   if (!user) {
     return (
       <main className="dashboard-page auth-wall">
@@ -184,7 +254,7 @@ export function DashboardPage({ user, showPage }: DashboardPageProps) {
             <Icon name="shield" size={48} />
           </div>
           <h2>Monitoring Dashboard is Locked</h2>
-          <p>Please log in or create an account to access your personal dashboard, track kidney metrics, configure WhatsApp reminders, and generate clinical reports.</p>
+          <p>Please log in or create an account to access your personal dashboard.</p>
           <div className="auth-wall-actions">
             <button className="login-btn-primary" onClick={() => showPage('login')}>Log In</button>
             <button className="signup-btn-secondary" onClick={() => showPage('signup')}>Sign Up</button>
@@ -194,653 +264,371 @@ export function DashboardPage({ user, showPage }: DashboardPageProps) {
     )
   }
 
-  // Calculate CKD stage dynamically from eGFR value
-  const getStageInfo = (eGFRVal: number) => {
-    if (eGFRVal >= 90) return { cat: 'G1', title: 'Stage G1', desc: 'Normal kidney function' }
-    if (eGFRVal >= 60) return { cat: 'G2', title: 'Stage G2', desc: 'Mildly decreased kidney function' }
-    if (eGFRVal >= 45) return { cat: 'G3a', title: 'Stage G3a', desc: 'Mildly to moderately decreased' }
-    if (eGFRVal >= 30) return { cat: 'G3b', title: 'Stage G3b', desc: 'Moderately to severely decreased' }
-    if (eGFRVal >= 15) return { cat: 'G4', title: 'Stage G4', desc: 'Severely decreased kidney function' }
-    return { cat: 'G5', title: 'Stage G5', desc: 'Kidney failure range' }
-  }
-
-  const stage = getStageInfo(egfr)
-
-  // Real-time local alerts calculation
-  const getAlerts = () => {
-    const alertsList: { type: 'danger' | 'warning' | 'info' | 'success'; title: string; message: string }[] = []
-
-    // Blood Pressure alerts
-    if (systolic >= 140 || diastolic >= 90) {
-      alertsList.push({
-        type: 'danger',
-        title: 'Hypertension Alert',
-        message: `Your current blood pressure is ${systolic}/${diastolic} mmHg (High). Limit sodium intake and consult your physician.`
-      })
-    } else if (systolic >= 130 || diastolic >= 80) {
-      alertsList.push({
-        type: 'warning',
-        title: 'Elevated Blood Pressure',
-        message: `Blood pressure is ${systolic}/${diastolic} mmHg. Maintain a low-salt diet and monitor daily.`
-      })
-    } else {
-      alertsList.push({
-        type: 'success',
-        title: 'BP within Target Range',
-        message: `Excellent blood pressure control (${systolic}/${diastolic} mmHg). Keep up the good work.`
-      })
-    }
-
-    // eGFR alerts
-    if (egfr < 60) {
-      alertsList.push({
-        type: 'danger',
-        title: 'Decreased kidney function (eGFR < 60)',
-        message: `eGFR of ${egfr} mL/min/1.73m² indicates impaired kidney clearance. Avoid NSAIDs and seek clinician review.`
-      })
-    } else {
-      alertsList.push({
-        type: 'info',
-        title: 'eGFR in Stable Range',
-        message: `eGFR at ${egfr} mL/min/1.73m² (${stage.title}) is currently stable.`
-      })
-    }
-
-    // Creatinine alerts
-    if (creatinine > 1.3) {
-      alertsList.push({
-        type: 'warning',
-        title: 'Elevated Creatinine',
-        message: `Creatinine of ${creatinine} mg/dL is higher than normal reference range (0.6-1.3 mg/dL).`
-      })
-    }
-
-    // Urine ACR alerts
-    if (uacr >= 30) {
-      alertsList.push({
-        type: 'warning',
-        title: 'Microalbuminuria Detected',
-        message: `Urine ACR is ${uacr} mg/g (Target: < 30 mg/g). Indicates early signs of kidney protein leakage.`
-      })
-    }
-
-    // Symptom tracker notifications
-    const severeSymptoms = Object.entries(symptoms).filter(([_, val]) => val === 'severe')
-    if (severeSymptoms.length > 0) {
-      alertsList.push({
-        type: 'danger',
-        title: 'Severe Symptoms Noted',
-        message: `You reported severe ${severeSymptoms.map(([key]) => key).join(', ')}. Contact your doctor's office immediately.`
-      })
-    }
-
-    return alertsList
-  }
-
-  const handleSaveWhatsapp = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!phone) {
-      setWhatsappMsg('Please enter a valid phone number.')
-      addToast('warning', 'Setup Failed', 'Enter a phone number to enable reminders.')
-      return
-    }
-    setWhatsappSaving(true)
-    setWhatsappMsg('')
-    setTimeout(() => {
-      setWhatsappSaving(false)
-      setWhatsappEnabled(true)
-      setWhatsappMsg(`WhatsApp reminders configured for ${phone}!`)
-      addToast('success', 'WhatsApp Enabled', `Reminders linked to ${phone}.`)
-    }, 1000)
-  }
-
-  const handleGenerateReport = () => {
-    setGeneratingReport(true)
-    setTimeout(() => {
-      setGeneratingReport(false)
-      setShowReportModal(true)
-      addToast('success', 'Report Compiled', 'Clinical consultations summary generated successfully.')
-    }, 1200)
-  }
-
-  // Simulated Reminder Triggers
-  const triggerMedicationAlert = () => {
-    if (!whatsappEnabled || !phone) {
-      addToast('info', 'WhatsApp Config Needed', 'Please save your phone number to enable reminder testing.')
-      return
-    }
-    sendWhatsAppNotification(
-      'Medication Reminder',
-      '💊 Daily Care: Time for your morning dose of Enalapril (BP) and Multivitamins. Take with water.'
-    )
-  }
-
-  const triggerWaterAlert = () => {
-    if (!whatsappEnabled || !phone) {
-      addToast('info', 'WhatsApp Config Needed', 'Please save your phone number to enable reminder testing.')
-      return
-    }
-    sendWhatsAppNotification(
-      'Hydration Alert',
-      '💧 Hydration check: Remember to drink 250ml of water. Total target: 1.8 liters today.'
-    )
-  }
-
-  const triggerMealAlert = () => {
-    if (!whatsappEnabled || !phone) {
-      addToast('info', 'WhatsApp Config Needed', 'Please save your phone number to enable reminder testing.')
-      return
-    }
-    sendWhatsAppNotification(
-      'Dietary Planner',
-      '🥗 Nutrition: Choose a low-sodium, low-potassium snack like an apple or half a cup of blueberries.'
-    )
-  }
-
-  const liveAlerts = getAlerts()
+  const latestPrediction = predictions[0];
+  const latestUltrasound = ultrasounds[0];
 
   return (
-    <main className="dashboard-page font-raleway animate-fade-in" style={{ position: 'relative' }}>
-      {/* Ambient background glows */}
-      <div className="db-glow-blob blob-1"></div>
-      <div className="db-glow-blob blob-2"></div>
-      <div className="db-glow-blob blob-3"></div>
+    <main className="dashboard-page">
 
-      {/* Toast Notification HUD */}
-      <div className="toast-hud-container" aria-live="polite">
-        {toasts.map(toast => (
-          <div key={toast.id} className={`toast-alert-card ${toast.type}`}>
-            <div className="toast-hud-icon">
-              <Icon 
-                name={
-                  toast.type === 'whatsapp' 
-                    ? 'message' 
-                    : toast.type === 'success' 
-                      ? 'check' 
-                      : 'alert'
-                } 
-                size={22} 
-              />
-            </div>
-            <div className="toast-hud-content">
-              <div className="toast-hud-title">{toast.title}</div>
-              <div className="toast-hud-message">{toast.message}</div>
-              {toast.action && (
-                <a 
-                  href={toast.action.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="toast-action-btn"
-                >
-                  {toast.action.label}
-                </a>
-              )}
-            </div>
-            <button 
-              type="button"
-              className="toast-hud-close" 
-              onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
-              aria-label="Close notification"
-            >
-              <Icon name="x" size={14} />
+      <header className="dashboard-header">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span className="dashboard-badge">PATIENT PORTAL</span>
+            <h1>Welcome back, {user.name}</h1>
+            <p>Here is your unified kidney health summary and clinical monitoring tracker.</p>
+          </div>
+          <div>
+            <button className="login-btn-primary" onClick={() => showPage('doctor-summary')} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Icon name="file-text" size={16} /> Generate Doctor Report
             </button>
           </div>
-        ))}
-      </div>
-
-      {/* Header section */}
-      <section className="dashboard-header animate-slide-up">
-        <div className="db-welcome">
-          <span className="eyebrow">Patient Portal</span>
-          <h1>Welcome back, {user.name}</h1>
-          <p className="db-welcome-subtitle">Here is your kidney health summary and clinical monitoring tracker for today.</p>
         </div>
-        <div className="db-quick-stats">
-          <div className="quick-badge-widget">
-            <span className="q-label">Current Stage</span>
-            <span className="q-val maroon-text">{stage.title}</span>
-            <span className="q-trend green-text"><Icon name="check" size={14} /> Stable</span>
-          </div>
-          <div className="quick-badge-widget">
-            <span className="q-label">Reminders</span>
-            <span className="q-val">{whatsappEnabled ? 'Active' : 'Disabled'}</span>
-            <span className={`q-trend ${whatsappEnabled ? 'green-text' : 'orange-text'}`}>
-              {whatsappEnabled ? 'WhatsApp Ready' : 'Setup required'}
-            </span>
-          </div>
-        </div>
-      </section>
+      </header>
 
-      {/* Main glass-panel grid layout (No cards) */}
       <div className="dashboard-grid">
-        
-        {/* Left column: Lab Metrics and Interactive Tuner */}
-        <div className="dashboard-left-col">
-          <div className="glass-panel main-metrics-panel animate-slide-up-delay-1">
-            <div className="panel-header">
-              <h2>Key Kidney Metrics</h2>
-              <p>Values updated from your latest clinical reports. Adjust sliders to see warning alerts update.</p>
-            </div>
 
-            {/* Interactive sliders to simulate clinical changes */}
-            <div className="metric-tuners">
-              <div className="tuner-group">
-                <div className="tuner-label">
-                  <span>eGFR (Kidney Function)</span>
-                  <strong className="maroon-text">{egfr} <small>mL/min</small></strong>
-                </div>
-                <input 
-                  type="range" 
-                  className="slider-egfr"
-                  min="10" 
-                  max="120" 
-                  value={egfr} 
-                  onChange={(e) => handleEgfrChange(Number(e.target.value))} 
-                />
-              </div>
 
-              <div className="tuner-group">
-                <div className="tuner-label">
-                  <span>Serum Creatinine</span>
-                  <strong className="maroon-text">{creatinine.toFixed(1)} <small>mg/dL</small></strong>
-                </div>
-                <input 
-                  type="range" 
-                  className="slider-creatinine"
-                  min="0.4" 
-                  max="8.0" 
-                  step="0.1" 
-                  value={creatinine} 
-                  onChange={(e) => handleCreatinineChange(Number(e.target.value))} 
-                />
-              </div>
-
-              <div className="tuner-group">
-                <div className="tuner-label">
-                  <span>Systolic Blood Pressure</span>
-                  <strong className="maroon-text">{systolic} <small>mmHg</small></strong>
-                </div>
-                <input 
-                  type="range" 
-                  className="slider-systolic"
-                  min="90" 
-                  max="180" 
-                  value={systolic} 
-                  onChange={(e) => handleSystolicChange(Number(e.target.value))} 
-                  title="Systolic"
-                />
-              </div>
-
-              <div className="tuner-group">
-                <div className="tuner-label">
-                  <span>Diastolic Blood Pressure</span>
-                  <strong className="maroon-text">{diastolic} <small>mmHg</small></strong>
-                </div>
-                <input 
-                  type="range" 
-                  className="slider-diastolic"
-                  min="50" 
-                  max="110" 
-                  value={diastolic} 
-                  onChange={(e) => handleDiastolicChange(Number(e.target.value))} 
-                  title="Diastolic"
-                />
-              </div>
-
-              <div className="tuner-group">
-                <div className="tuner-label">
-                  <span>Urine ACR (Albumin-to-Creatinine Ratio)</span>
-                  <strong className="maroon-text">{uacr} <small>mg/g</small></strong>
-                </div>
-                <input 
-                  type="range" 
-                  className="slider-uacr"
-                  min="10" 
-                  max="300" 
-                  step="5"
-                  value={uacr} 
-                  onChange={(e) => handleUacrChange(Number(e.target.value))} 
-                />
-              </div>
-            </div>
-
-            {/* Grid of readouts */}
-            <div className="metrics-grid">
-              <div className="metric-box-card">
-                <div className="m-title">eGFR Function</div>
-                <div className="m-value">{egfr}</div>
-                <div className="m-unit">mL/min/1.73m²</div>
-                <span className={`m-badge ${egfr >= 90 ? 'green-bg' : egfr >= 60 ? 'yellow-bg' : 'red-bg'}`}>
-                  {egfr >= 90 ? 'Optimal' : egfr >= 60 ? 'Stage 2' : 'Stage 3+'}
-                </span>
-                <div className="m-spark">
-                  <svg viewBox="0 0 100 25" width="100%" height="25">
-                    <path d={`M 0 18 Q 25 ${22 - (egfr - 10)/5} 50 ${20 - (egfr - 10)/5} T 100 ${23 - (egfr - 10)/5}`} fill="none" stroke="var(--maroon)" strokeWidth="2" />
-                    <circle cx="100" cy={23 - (egfr - 10)/5} r="3" fill="var(--maroon)" />
-                  </svg>
-                </div>
-              </div>
-
-              <div className="metric-box-card">
-                <div className="m-title">Creatinine</div>
-                <div className="m-value">{creatinine.toFixed(1)}</div>
-                <div className="m-unit">mg/dL</div>
-                <span className={`m-badge ${creatinine <= 1.3 ? 'green-bg' : 'red-bg'}`}>
-                  {creatinine <= 1.3 ? 'Normal' : 'High'}
-                </span>
-                <div className="m-spark">
-                  <svg viewBox="0 0 100 25" width="100%" height="25">
-                    <path d={`M 0 10 Q 25 ${12 + creatinine} 50 ${10 + creatinine} T 100 ${8 + creatinine}`} fill="none" stroke="var(--green)" strokeWidth="2" />
-                    <circle cx="100" cy={8 + creatinine} r="3" fill="var(--green)" />
-                  </svg>
-                </div>
-              </div>
-
-              <div className="metric-box-card">
-                <div className="m-title">Blood Pressure</div>
-                <div className="m-value">{systolic}/{diastolic}</div>
-                <div className="m-unit">mmHg</div>
-                <span className={`m-badge ${systolic < 130 && diastolic < 80 ? 'green-bg' : systolic >= 140 || diastolic >= 90 ? 'red-bg' : 'yellow-bg'}`}>
-                  {systolic < 130 && diastolic < 80 ? 'Normal' : systolic >= 140 || diastolic >= 90 ? 'High' : 'Elevated'}
-                </span>
-                <div className="m-spark">
-                  <svg viewBox="0 0 100 25" width="100%" height="25">
-                    <path d="M 0 12 Q 25 15 50 10 T 100 12" fill="none" stroke="var(--blue)" strokeWidth="2" />
-                    <circle cx="100" cy="12" r="3" fill="var(--blue)" />
-                  </svg>
-                </div>
-              </div>
-
-              <div className="metric-box-card">
-                <div className="m-title">Urine ACR</div>
-                <div className="m-value">{uacr}</div>
-                <div className="m-unit">mg/g</div>
-                <span className={`m-badge ${uacr < 30 ? 'green-bg' : 'red-bg'}`}>
-                  {uacr < 30 ? 'Normal' : 'Microalbuminuria'}
-                </span>
-                <div className="m-spark">
-                  <svg viewBox="0 0 100 25" width="100%" height="25">
-                    <path d="M 0 16 Q 25 14 50 16 T 100 15" fill="none" stroke="var(--gold)" strokeWidth="2" />
-                    <circle cx="100" cy="15" r="3" fill="var(--gold)" />
-                  </svg>
-                </div>
-              </div>
-            </div>
+        {/* 1. CKD Risk Prediction */}
+        <section className="dash-card feature-card">
+          <div className="card-header">
+            <Icon name="activity" size={20} />
+            <h3>CKD Risk Prediction</h3>
           </div>
+          <div className="card-body">
+            {latestPrediction ? (
+              <div className="risk-display" style={{textAlign: 'center'}}>
+                <ResponsiveContainer width="100%" height={120}>
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: 'Risk', value: latestPrediction.risk_percent },
+                        { name: 'Safe', value: 100 - latestPrediction.risk_percent }
+                      ]}
+                      cx="50%"
+                      cy="100%"
+                      startAngle={180}
+                      endAngle={0}
+                      innerRadius={60}
+                      outerRadius={80}
+                      dataKey="value"
+                      stroke="none"
+                    >
+                      <Cell fill="#9F1239" />
+                      <Cell fill="#e2e8f0" />
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div style={{marginTop: '-25px', fontWeight: 800, fontSize: '24px', color: '#9F1239'}}>
+                  {latestPrediction.risk_percent.toFixed(1)}%
+                </div>
+                <div style={{marginTop: '16px'}}>
+                  <p>Assessed on: {new Date(latestPrediction.timestamp).toLocaleDateString()}</p>
+                  <button className="btn-secondary" onClick={() => showPage('ckd-prediction')} style={{width: '100%', marginTop: '8px'}}>Run New Prediction</button>
+                </div>
+              </div>
+            ) : (
+              <div className="empty-state">
+                <p>Run the AI risk check to predict your kidney function stage.</p>
+                <button className="btn-primary" onClick={() => showPage('ckd-prediction')} style={{marginTop: '12px'}}>Start Prediction</button>
+              </div>
+            )}
+          </div>
+        </section>
 
-          {/* Interactive Symptom Tracker */}
-          <div className="glass-panel symptom-tracker-panel animate-slide-up-delay-2">
-            <div className="panel-header">
-              <h2>Symptom Tracker</h2>
-              <p>Monitor your symptoms daily. High-risk symptoms trigger early warning clinical alerts.</p>
-            </div>
-            
-            <div className="symptom-tracker-list">
-              {Object.keys(symptoms).map(symptom => (
-                <div className="symptom-row" key={symptom}>
-                  <span className="symptom-name">{symptom.charAt(0).toUpperCase() + symptom.slice(1)}</span>
-                  <div className="symptom-choices">
-                    {(['none', 'mild', 'moderate', 'severe'] as const).map(sev => (
-                      <button
-                        type="button"
-                        key={sev}
-                        className={`symptom-choice-btn ${sev} ${symptoms[symptom] === sev ? 'active' : ''}`}
-                        onClick={() => handleSymptomToggle(symptom, sev)}
-                      >
-                        {sev.charAt(0).toUpperCase() + sev.slice(1)}
-                      </button>
-                    ))}
+        {/* 2. CKD Stage Screening */}
+        <section className="dash-card feature-card">
+          <div className="card-header">
+            <Icon name="activity" size={20} />
+            <h3>CKD Stage Screening</h3>
+          </div>
+          <div className="card-body">
+            {latestPrediction ? (
+              <div className="stage-display">
+                <div className="stage-metric" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px'}}>
+                  <div>
+                    <span className="stage-value" style={{fontSize: '32px', fontWeight: 800, color: '#9F1239'}}>{latestPrediction.stage}</span>
+                    <span className="stage-label" style={{display: 'block', fontSize: '14px', color: '#64748b'}}>Current Stage</span>
+                  </div>
+                  <div style={{textAlign: 'right', fontSize: '14px', color: '#64748b'}}>
+                    <div>eGFR: <strong>{latestPrediction.egfr}</strong></div>
+                    <div>ACR: <strong>{latestPrediction.uacr}</strong></div>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Right column: Alerts, WhatsApp, and Reports */}
-        <div className="dashboard-right-col">
-          
-          {/* WhatsApp Assistant Integration */}
-          <div className="glass-panel whatsapp-panel animate-slide-up-delay-1">
-            <div className="panel-header">
-              <div className="wa-title-row">
-                <Icon name="message" size={24} />
-                <h2>WhatsApp Health Assistant</h2>
-              </div>
-              <p>Configure automated reminders on WhatsApp for your medication schedule, water intake, and appointment checkups.</p>
-            </div>
-
-            <form onSubmit={handleSaveWhatsapp} className="whatsapp-setup-form">
-              <div className="form-group">
-                <label htmlFor="wa-phone">Phone Number (with Country Code)</label>
-                <input 
-                  id="wa-phone"
-                  type="tel" 
-                  placeholder="e.g. +1 555-0199" 
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  disabled={whatsappSaving}
-                />
-              </div>
-              <div className="reminder-options">
-                <label className="checkbox-option">
-                  <input type="checkbox" defaultChecked /> Medication Reminders (9:00 AM)
-                </label>
-                <label className="checkbox-option">
-                  <input type="checkbox" defaultChecked /> Water Intake Reminders (Every 2 Hours)
-                </label>
-                <label className="checkbox-option">
-                  <input type="checkbox" defaultChecked /> Diet & Meal Planner Notifications
-                </label>
-              </div>
-
-              <button type="submit" className="whatsapp-save-btn" disabled={whatsappSaving}>
-                {whatsappSaving ? 'Saving...' : whatsappEnabled ? 'Update Settings' : 'Enable WhatsApp Reminders'}
-              </button>
-
-              {whatsappMsg && (
-                <p className={`whatsapp-status-msg ${whatsappEnabled ? 'success' : 'error'}`}>
-                  {whatsappMsg}
-                </p>
-              )}
-            </form>
-          </div>
-
-          {/* Interactive Reminders Testing Lab */}
-          <div className="glass-panel testing-lab-panel animate-slide-up-delay-2">
-            <div className="panel-header">
-              <div className="wa-title-row">
-                <Icon name="spark" size={24} />
-                <h2>Care Notification Simulator</h2>
-              </div>
-              <p>Test the real-time WhatsApp alert and clinical notification pipelines instantly.</p>
-            </div>
-            <div className="testing-actions">
-              <button type="button" className="test-btn btn-medication" onClick={triggerMedicationAlert}>
-                <span className="btn-icon">💊</span>
-                <span className="btn-text">Test Med Reminder</span>
-              </button>
-              <button type="button" className="test-btn btn-water" onClick={triggerWaterAlert}>
-                <span className="btn-icon">💧</span>
-                <span className="btn-text">Test Hydration Alert</span>
-              </button>
-              <button type="button" className="test-btn btn-diet" onClick={triggerMealAlert}>
-                <span className="btn-icon">🥗</span>
-                <span className="btn-text">Test Diet Suggestion</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Early Warning Alerts */}
-          <div className="glass-panel alerts-panel animate-slide-up-delay-2">
-            <div className="panel-header">
-              <h2>Early Warning Alerts</h2>
-              <p>Calculated dynamically based on your blood pressure, symptoms, and lab results.</p>
-            </div>
-            <div className="alerts-list">
-              {liveAlerts.length === 0 ? (
-                <div className="empty-alerts">All systems optimal. No alerts active.</div>
-              ) : (
-                liveAlerts.map((alert, idx) => (
-                  <div className={`alert-item-box ${alert.type}`} key={idx}>
-                    <div className="alert-item-icon">
-                      <Icon name={alert.type === 'danger' ? 'alert' : alert.type === 'warning' ? 'alert' : 'spark'} size={18} />
-                    </div>
-                    <div className="alert-item-body">
-                      <strong>{alert.title}</strong>
-                      <p>{alert.message}</p>
-                    </div>
+                {predictions.length >= 2 && (
+                  <div style={{marginTop: '16px'}}>
+                    <div style={{fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '8px', textTransform: 'uppercase'}}>Stage Evolution</div>
+                    <ResponsiveContainer width="100%" height={80}>
+                      <AreaChart data={[...predictions].reverse()}>
+                        <defs>
+                          <linearGradient id="colorEgfr" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <Area type="monotone" dataKey="egfr" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorEgfr)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Doctor Summary Report */}
-          <div className="glass-panel report-generator-panel animate-slide-up-delay-3">
-            <div className="panel-header">
-              <h2>Doctor Consultation Summary</h2>
-              <p>Generate a professional clinical health summary with kidney stage, lab values, and symptom trend graphs for your doctor visit.</p>
-            </div>
-            <div className="report-action-block">
-              <div className="report-preview-tiny">
-                <Icon name="report" size={32} />
-                <div>
-                  <strong>NephroCare Clinical Summary</strong>
-                  <span>Compiled: June 21, 2026</span>
-                </div>
-              </div>
-              <button 
-                type="button" 
-                className="generate-report-btn"
-                onClick={handleGenerateReport}
-                disabled={generatingReport}
-              >
-                {generatingReport ? (
-                  <>
-                    <span className="spinner-inline"></span>
-                    Compiling report details...
-                  </>
-                ) : (
-                  'Generate Summary Report'
                 )}
-              </button>
-            </div>
+              </div>
+            ) : (
+              <div className="empty-state">
+                <p>Assessment Required to determine clinical stage.</p>
+                <button className="btn-primary" onClick={() => showPage('ckd-prediction')} style={{marginTop: '12px'}}>Screen Stage</button>
+              </div>
+            )}
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* Clinical Report modal */}
-      {showReportModal && (
-        <div className="report-modal-overlay">
-          <div className="report-modal-card">
-            <div className="report-modal-header">
-              <div className="modal-title">
-                <Icon name="report" size={28} />
-                <h2>NephroCare Patient Health Summary</h2>
+        {/* 4. Ultrasound Analysis */}
+        <section className="dash-card feature-card">
+          <div className="card-header">
+            <Icon name="activity" size={20} />
+            <h3>Ultrasound Analysis</h3>
+          </div>
+          <div className="card-body">
+            {latestUltrasound ? (
+              <div className="ultrasound-display">
+                {latestUltrasound.image_url && <img src={latestUltrasound.image_url} alt="Scan" className="scan-thumb" />}
+                <div>Severity: <strong>{latestUltrasound.severity}</strong></div>
+                <div>Size: {latestUltrasound.kidney_size_mm || '--'} mm</div>
+                <div>Thickness: {latestUltrasound.cortical_thickness_mm || '--'} mm</div>
+                <button className="btn-secondary" onClick={() => showPage('ultrasound')}>View Details</button>
               </div>
-              <button type="button" className="close-modal-btn" onClick={() => setShowReportModal(false)}><Icon name="x" size={20} /></button>
-            </div>
+            ) : (
+              <div className="empty-state">
+                <p>No Ultrasound Scans analyzed. Screen kidney structural markers with the AI scan tool.</p>
+                <button className="btn-primary" onClick={() => showPage('ultrasound')}>Upload Scan</button>
+              </div>
+            )}
+          </div>
+        </section>
 
-            <div className="report-modal-body printable-area">
-              <div className="clinical-header-block">
-                <div>
-                  <h3>NephroCare Clinical Report</h3>
-                  <p className="doc-disclaimer">For Clinical Review & Doctor Consultation Only</p>
+        {/* 3. Lab Report Analysis */}
+        <section className="dash-card feature-card col-span-2">
+          <div className="card-header">
+            <Icon name="file-text" size={20} />
+            <h3>Recent Lab Values</h3>
+          </div>
+          <div className="card-body">
+            {latestPrediction ? (
+              <div className="lab-grid">
+                <div className={`lab-item ${latestPrediction.creatinine > 1.3 ? 'danger' : 'normal'}`}>
+                  <span>Creatinine</span>
+                  <strong>{latestPrediction.creatinine} mg/dL</strong>
                 </div>
-                <div className="clinical-meta">
-                  <div><strong>Patient:</strong> {user.name}</div>
-                  <div><strong>Email:</strong> {user.email}</div>
-                  <div><strong>Report Date:</strong> June 21, 2026</div>
+                <div className={`lab-item ${latestPrediction.potassium > 5.1 ? 'danger' : 'normal'}`}>
+                  <span>Potassium</span>
+                  <strong>{latestPrediction.potassium} mmol/L</strong>
+                </div>
+                <div className={`lab-item ${latestPrediction.sodium < 135 || latestPrediction.sodium > 145 ? 'warning' : 'normal'}`}>
+                  <span>Sodium</span>
+                  <strong>{latestPrediction.sodium} mEq/L</strong>
+                </div>
+                <div className="lab-item normal">
+                  <span>Hemoglobin</span>
+                  <strong>{latestPrediction.hemoglobin} g/dL</strong>
+                </div>
+                <div className="lab-item normal">
+                  <span>Blood Urea</span>
+                  <strong>{latestPrediction.blood_urea} mg/dL</strong>
                 </div>
               </div>
+            ) : (
+              <div className="empty-state">
+                <p>No Lab Reports uploaded yet. Upload a PDF clinical lab report to autofill your metrics.</p>
+                <button className="btn-primary" onClick={() => showPage('ckd-prediction')}>Upload Report</button>
+              </div>
+            )}
+          </div>
+        </section>
 
-              <div className="clinical-section">
-                <h4>1. Estimated Kidney Stage</h4>
-                <div className="stage-readout-row">
-                  <div className="stage-box">
-                    <span className="stage-num">{stage.cat}</span>
-                    <span className="stage-label">CKD Category</span>
+
+
+        {/* 6. Food Recommendation Engine */}
+        <section className="dash-card feature-card">
+          <div className="card-header">
+            <Icon name="heart" size={20} />
+            <h3>Food Recommendations</h3>
+          </div>
+          <div className="card-body">
+            {latestPrediction ? (
+              <div className="recommendations-display">
+                <p>Tailored for Stage: <strong>{latestPrediction.stage}</strong></p>
+                <div className="rec-box safe">
+                  <strong>Recommended:</strong> Apples, Blueberries, Cabbage
+                </div>
+                <div className="rec-box avoid">
+                  <strong>Limit/Avoid:</strong> Bananas, High-potassium dal, Processed meats
+                </div>
+              </div>
+            ) : (
+              <div className="empty-state">
+                <p>Please complete a CKD prediction to view tailored food recommendations.</p>
+                <button className="btn-primary" onClick={() => showPage('ckd-prediction')}>Find Stage</button>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* 7. AI Meal Planner */}
+        <section className="dash-card feature-card">
+          <div className="card-header">
+            <Icon name="calendar" size={20} />
+            <h3>AI Meal Planner</h3>
+          </div>
+          <div className="card-body">
+            {mealPlan ? (
+              <div className="meal-plan-display">
+                <div style={{display: 'flex', gap: '16px', alignItems: 'center'}}>
+                  <div style={{flex: 1}}>
+                    <div className="meal-row"><strong>Breakfast:</strong> {mealPlan.breakfast.map(f => f.food_name).join(', ')}</div>
+                    <div className="meal-row"><strong>Lunch:</strong> {mealPlan.lunch.map(f => f.food_name).join(', ')}</div>
+                    <div className="meal-row"><strong>Dinner:</strong> {mealPlan.dinner.map(f => f.food_name).join(', ')}</div>
                   </div>
-                  <p>
-                    <strong>Functional Status: </strong>
-                    {stage.title} ({stage.desc}). eGFR is {egfr} mL/min/1.73m².
-                  </p>
+                  <div style={{width: '120px', height: '120px'}}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: 'Protein', value: [...mealPlan.breakfast, ...mealPlan.lunch, ...mealPlan.dinner].reduce((acc, curr) => acc + (curr.protein_g || 0), 0) },
+                            { name: 'Potassium', value: [...mealPlan.breakfast, ...mealPlan.lunch, ...mealPlan.dinner].reduce((acc, curr) => acc + (curr.potassium_mg || 0), 0) / 10 },
+                            { name: 'Phosphorus', value: [...mealPlan.breakfast, ...mealPlan.lunch, ...mealPlan.dinner].reduce((acc, curr) => acc + (curr.phosphorus_mg || 0), 0) / 10 }
+                          ]}
+                          innerRadius={30}
+                          outerRadius={50}
+                          dataKey="value"
+                          stroke="none"
+                        >
+                          <Cell fill="#0ea5e9" />
+                          <Cell fill="#f59e0b" />
+                          <Cell fill="#ec4899" />
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
+                <button className="btn-secondary" onClick={() => { if(setFoodTab) setFoodTab('plan'); showPage('food-tools'); }} style={{marginTop: '16px', width: '100%'}}>View Full Plan</button>
               </div>
-
-              <div className="clinical-section">
-                <h4>2. Diagnostic Lab Metrics</h4>
-                <table className="clinical-labs-table">
-                  <thead>
-                    <tr>
-                      <th>Marker Name</th>
-                      <th>Value</th>
-                      <th>Reference Range</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>eGFR (Kidney Function)</td>
-                      <td>{egfr} mL/min/1.73m²</td>
-                      <td>&gt; 90 mL/min</td>
-                      <td><span className={`status-tag ${egfr >= 60 ? 'normal' : 'abnormal'}`}>{egfr >= 60 ? 'Stable' : 'Decreased'}</span></td>
-                    </tr>
-                    <tr>
-                      <td>Serum Creatinine</td>
-                      <td>{creatinine.toFixed(1)} mg/dL</td>
-                      <td>0.6 - 1.3 mg/dL</td>
-                      <td><span className={`status-tag ${creatinine <= 1.3 ? 'normal' : 'abnormal'}`}>{creatinine <= 1.3 ? 'Normal' : 'High'}</span></td>
-                    </tr>
-                    <tr>
-                      <td>Blood Pressure</td>
-                      <td>{systolic}/{diastolic} mmHg</td>
-                      <td>&lt; 120/80 mmHg</td>
-                      <td><span className={`status-tag ${systolic < 130 && diastolic < 80 ? 'normal' : 'abnormal'}`}>{systolic < 130 && diastolic < 80 ? 'Optimal' : 'Elevated'}</span></td>
-                    </tr>
-                    <tr>
-                      <td>Urine ACR</td>
-                      <td>{uacr} mg/g</td>
-                      <td>&lt; 30 mg/g</td>
-                      <td><span className={`status-tag ${uacr < 30 ? 'normal' : 'abnormal'}`}>{uacr < 30 ? 'Normal' : 'Microalbuminuria'}</span></td>
-                    </tr>
-                  </tbody>
-                </table>
+            ) : (
+              <div className="empty-state">
+                <p>Generate a kidney-safe meal plan adjusted for your kidney stage.</p>
+                <button className="btn-primary" onClick={() => { if(setFoodTab) setFoodTab('plan'); showPage('food-tools'); }} style={{marginTop: '12px'}}>Generate Plan</button>
               </div>
+            )}
+          </div>
+        </section>
 
-              <div className="clinical-section">
-                <h4>3. Patient Reported Symptoms</h4>
-                <div className="clinical-symptom-summary">
-                  {Object.entries(symptoms).map(([name, val]) => (
-                    <div className="sym-summary-item" key={name}>
-                      <span className="name">{name.charAt(0).toUpperCase() + name.slice(1)}:</span>
-                      <strong className={`val ${val === 'severe' ? 'red-text' : val === 'moderate' ? 'orange-text' : 'green-text'}`}>
-                        {val.toUpperCase()}
-                      </strong>
+
+
+        {/* 8. Symptom Tracker */}
+        <section className="dash-card feature-card col-span-3">
+          <div className="card-header">
+            <Icon name="activity" size={20} />
+            <h3>Symptom Tracker</h3>
+          </div>
+          <div className="card-body">
+            <div className="symptom-toggles">
+              {['fatigue', 'swelling', 'nausea', 'appetite', 'urination'].map((symp) => {
+                const symptomKey = symp as keyof Omit<SymptomLog, 'timestamp'>;
+                const currentSeverity = latestSymptoms[symptomKey];
+                return (
+                  <div key={symp} className="symptom-row">
+                    <span className="symptom-name">{symp.charAt(0).toUpperCase() + symp.slice(1)}</span>
+                    <div className="severity-selector">
+                      {['none', 'mild', 'moderate', 'severe'].map(sev => (
+                        <button 
+                          key={sev}
+                          className={`severity-btn ${currentSeverity === sev ? 'active ' + sev : ''}`}
+                          onClick={() => handleSymptomChange(symptomKey, sev as any)}
+                        >
+                          {sev.charAt(0).toUpperCase() + sev.slice(1)}
+                        </button>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="clinical-section">
-                <h4>4. Clinical Recommendations</h4>
-                <ul className="clinical-diet-bullets">
-                  {egfr < 60 && <li>Follow a low-protein diet and restrict high-potassium foods.</li>}
-                  {uacr >= 30 && <li>Strict blood pressure control is advised to minimize albuminuria progression.</li>}
-                  <li>Sodium limit: &lt; 2,000 mg per day. Avoid processed and canned foods.</li>
-                  <li>Maintain fluid intake steady at 1.5 - 2 liters unless dialysis restriction is indicated.</li>
-                </ul>
-              </div>
-            </div>
-
-            <div className="report-modal-footer no-print">
-              <button type="button" className="btn-print-doc" onClick={() => window.print()}>Print / Save PDF</button>
-              <button type="button" className="btn-close-modal" onClick={() => setShowReportModal(false)}>Close</button>
+                  </div>
+                )
+              })}
             </div>
           </div>
-        </div>
-      )}
+        </section>
+
+        {/* 11. Doctor Summary */}
+        <section className="dash-card feature-card col-span-3">
+          <div className="card-header">
+            <Icon name="file-text" size={20} />
+            <h3>Doctor Summary</h3>
+          </div>
+          <div className="card-body">
+            {latestPrediction ? (
+              <div className="doc-summary">
+                <p>Generate a comprehensive PDF consultation report based on your latest metrics.</p>
+                <button className="btn-primary" onClick={() => alert('PDF generation initiated.')}>Download Report</button>
+              </div>
+            ) : (
+              <div className="empty-state">
+                <p>Complete prediction check to unlock consultation reports.</p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* 12. Monitoring Dashboard Analytics */}
+        <section className="dash-card feature-card col-span-3">
+          <div className="card-header">
+            <Icon name="activity" size={20} />
+            <h3>Health Trend Analytics</h3>
+          </div>
+          <div className="card-body">
+            {predictions.length >= 2 ? (
+              <div style={{display: 'flex', gap: '32px', flexWrap: 'wrap'}}>
+                <div style={{flex: 1, minWidth: '300px'}}>
+                  <h4 style={{marginBottom: '16px', color: '#64748b', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px'}}>Risk Percentage Trend</h4>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <BarChart data={[...predictions].reverse()}>
+                      <defs>
+                        <linearGradient id="colorRisk" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8}/>
+                          <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.2}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis dataKey="timestamp" tickFormatter={(t) => new Date(t).toLocaleDateString()} stroke="#94a3b8" fontSize={12} />
+                      <YAxis stroke="#94a3b8" fontSize={12} />
+                      <Tooltip labelFormatter={(t) => new Date(t).toLocaleDateString()} cursor={{fill: '#f1f5f9'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}} />
+                      <Bar dataKey="risk_percent" fill="url(#colorRisk)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div style={{flex: 1, minWidth: '300px'}}>
+                  <h4 style={{marginBottom: '16px', color: '#64748b', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px'}}>Creatinine Levels</h4>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <AreaChart data={[...predictions].reverse()}>
+                      <defs>
+                        <linearGradient id="colorCreatinine" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis dataKey="timestamp" tickFormatter={(t) => new Date(t).toLocaleDateString()} stroke="#94a3b8" fontSize={12} />
+                      <YAxis stroke="#94a3b8" fontSize={12} />
+                      <Tooltip labelFormatter={(t) => new Date(t).toLocaleDateString()} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}} />
+                      <Area type="monotone" dataKey="creatinine" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorCreatinine)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            ) : (
+              <div className="empty-state" style={{gridColumn: '1 / -1'}}>
+                <p>Analytics require at least 2 entries in your health logs to plot trends. Currently tracking {predictions.length} predictions.</p>
+              </div>
+            )}
+          </div>
+        </section>
+
+      </div>
     </main>
   )
 }

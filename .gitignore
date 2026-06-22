@@ -9,4 +9,3 @@ frontend/.npm-cache/
 .pip-cache/
 .env
 .ipynb_checkpoints/
-.env.example

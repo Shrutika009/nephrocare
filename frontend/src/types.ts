@@ -1,4 +1,4 @@
-export type Page = 'home' | 'ckd-prediction' | 'food-tools' | 'login' | 'signup' | 'dashboard' | 'ultrasound'
+export type Page = 'home' | 'ckd-prediction' | 'food-tools' | 'login' | 'signup' | 'dashboard' | 'ultrasound' | 'doctor-summary' | 'alerts'
 
 export type PredictionForm = {
   age: number | ''
@@ -56,4 +56,29 @@ export type MealPlanResponse = {
   snack: FoodAnalysis[]
   dinner: FoodAnalysis[]
   notes: string[]
+}
+
+export type UltrasoundScanResult = {
+  image_quality: string
+  observations: string[]
+  severity: string
+  recommendation: string
+  error?: string
+}
+
+export type ToastType = 'danger' | 'warning' | 'info' | 'success' | 'whatsapp';
+
+export type Toast = {
+  id: string
+  type: ToastType
+  title: string
+  message: string
+  action?: { label: string; url: string }
+}
+
+export type WhatsAppLog = {
+  timestamp: string;
+  title: string;
+  message: string;
+  status: 'Sent' | 'Simulated' | 'Failed';
 }

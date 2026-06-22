@@ -40,6 +40,7 @@ export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpe
       <button className="nav-link" onClick={() => scrollTo('resources')}>Resources</button>
     </nav>
     <div className="header-actions">
+      <button className="signup-button dashboard-tab" onClick={() => showPage('dashboard')} style={{marginRight: '12px'}}>Dashboard</button>
       {user ? (
         <div className="user-profile-container" ref={dropdownRef} style={{ position: 'relative' }}>
           <div className="user-profile" onClick={() => setUserMenuOpen(!userMenuOpen)} style={{ cursor: 'pointer', userSelect: 'none' }}>

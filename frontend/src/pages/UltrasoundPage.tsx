@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Icon } from '../components/Icon'
 import { API_BASE_URL } from '../constants'
 import type { Page, UltrasoundScanResult } from '../types'
@@ -9,14 +9,24 @@ type UltrasoundPageProps = {
   setResult: (res: UltrasoundScanResult | null) => void
   metrics: { egfr: number; probability: number } | null
   setMetrics: (met: { egfr: number; probability: number } | null) => void
+  imagePreview: string
+  setImagePreview: (url: string) => void
 }
 
-export function UltrasoundPage({ showPage, result, setResult, metrics, setMetrics }: UltrasoundPageProps) {
+export function UltrasoundPage({ showPage, result, setResult, metrics, setMetrics, imagePreview, setImagePreview }: UltrasoundPageProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string>('')
-  const [loading, setLoading] = useState(false)
+  const [scanStep, setScanStep] = useState<'upload' | 'scanning' | 'results'>(result ? 'results' : 'upload')
   const [logs, setLogs] = useState<string[]>([])
+  const [logsOpen, setLogsOpen] = useState(false)
+  const [scanProgress, setScanProgress] = useState(0)
+  
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (result && scanStep !== 'results') {
+      setScanStep('results')
+    }
+  }, [result, scanStep])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -26,8 +36,9 @@ export function UltrasoundPage({ showPage, result, setResult, metrics, setMetric
     setResult(null)
     setMetrics(null)
     setLogs([])
+    setScanStep('upload')
     
-    if (imagePreview) {
+    if (imagePreview && imagePreview.startsWith('blob:')) {
       URL.revokeObjectURL(imagePreview)
     }
     setImagePreview(URL.createObjectURL(file))
@@ -35,6 +46,19 @@ export function UltrasoundPage({ showPage, result, setResult, metrics, setMetric
 
   const triggerFileSelect = () => {
     fileInputRef.current?.click()
+  }
+
+  const resetScan = () => {
+    setResult(null)
+    setMetrics(null)
+    setImagePreview('')
+    setSelectedFile(null)
+    setLogs([])
+    setScanStep('upload')
+  }
+
+  const handlePrint = () => {
+    window.print()
   }
 
   // Calculate dynamic eGFR and probability from severity & observations
@@ -70,91 +94,124 @@ export function UltrasoundPage({ showPage, result, setResult, metrics, setMetric
   }
 
   const runUltrasoundScan = async () => {
-    if (!selectedFile) return
+    if (!selectedFile && !imagePreview) return // allow rerun if image preview exists from before
 
-    setLoading(true)
+    setScanStep('scanning')
     setResult(null)
     setMetrics(null)
+    setScanProgress(0)
+    setLogs([])
     
-    // Simulate real-time console pipeline logs with timeouts
     const logSteps = [
-      'Loading Gemini Vision model...',
-      'Model loaded.',
-      'Validating ultrasound image...',
-      'Image verification passed.',
-      'Running AI screening pipeline...'
+      'Initializing secure connection...',
+      'Loading Gemini Vision model parameters...',
+      'Preprocessing ultrasound image...',
+      'Enhancing contrast and edge detection...',
+      'Running AI screening pipeline...',
+      'Analyzing cortical thickness and echogenicity...',
+      'Finalizing recommendations...'
     ]
 
-    setLogs([])
     for (let i = 0; i < logSteps.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 400))
+      await new Promise(resolve => setTimeout(resolve, 500))
       setLogs(prev => [...prev, logSteps[i]])
+      setScanProgress(Math.floor(((i + 1) / logSteps.length) * 90)) // Go up to 90%
     }
 
     try {
-      const formData = new FormData()
-      formData.append('image', selectedFile)
-
-      const response = await fetch(`${API_BASE_URL}/api/scan-ultrasound`, {
-        method: 'POST',
-        body: formData
-      })
-
-      if (!response.ok) {
-        throw new Error('API request failed.')
-      }
-
-      const data: UltrasoundScanResult = await response.json()
+      let data: UltrasoundScanResult;
       
-      setLogs(prev => [...prev, 'Prediction done.'])
+      if (selectedFile) {
+        const formData = new FormData()
+        formData.append('image', selectedFile)
+
+        const response = await fetch(`${API_BASE_URL}/api/scan-ultrasound`, {
+          method: 'POST',
+          body: formData
+        })
+
+        if (!response.ok) {
+          throw new Error('API request failed.')
+        }
+
+        data = await response.json()
+      } else {
+        throw new Error('No physical file found for re-scan. Please upload the image again.');
+      }
+      
+      setScanProgress(100)
+      setLogs(prev => [...prev, 'Scan completed successfully.'])
+      
+      // Delay briefly so user sees 100%
+      await new Promise(resolve => setTimeout(resolve, 400))
+      
       setResult(data)
 
-      // Calculate the metrics dynamically from the live observation text & severity
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        try {
+          const historyItem = {
+            timestamp: new Date().toISOString(),
+            severity: data.severity,
+            image_quality: data.image_quality,
+            observations: data.observations,
+            recommendation: data.recommendation,
+            image_url: reader.result as string
+          };
+          const existing = JSON.parse(localStorage.getItem('nephrocare_ultrasound_scans') || '[]');
+          localStorage.setItem('nephrocare_ultrasound_scans', JSON.stringify([historyItem, ...existing].slice(0, 5)));
+        } catch (e) {
+          console.warn("Storage quota exceeded", e);
+        }
+      }
+      if (selectedFile) reader.readAsDataURL(selectedFile);
+
       if (data.severity !== 'Unknown') {
         const computed = calculateMetrics(data.severity, data.observations)
         setMetrics(computed)
       } else {
-        // If image verification failed, set fallback
         setMetrics({ egfr: 90, probability: 0 })
       }
+      
+      setScanStep('results')
     } catch (err) {
       setLogs(prev => [...prev, 'Error: Screening pipeline failed.'])
       setResult({
         image_quality: 'Error',
-        observations: ['Connection error. Please check if backend API is running.'],
+        observations: [err instanceof Error ? err.message : 'Connection error. Please check if backend API is running.'],
         severity: 'Unknown',
         recommendation: 'Verify uvicorn API server status and try again.'
       })
-    } finally {
-      setLoading(false)
+      setScanStep('results')
     }
   }
 
   return (
     <main className="ultrasound-page-container font-raleway">
-      <div className="ultrasound-header">
+      <div className="ultrasound-header no-print">
         <span className="eyebrow" onClick={() => showPage('home')}>Diagnostic Imaging</span>
         <h1>AI-Assisted Ultrasound Analysis</h1>
         <p className="subtitle">Screening kidney architecture for structural markers, echogenicity variations, and early CKD stage estimation.</p>
       </div>
 
-      <div className="ultrasound-layout-grid">
-        {/* Left Column: Image Card and Preview */}
-        <div className="ultrasound-left-panel">
-          <div className="ultrasound-card preview-card">
-            <div className="preview-container">
+      {scanStep === 'upload' && (
+        <div className="us-upload-view no-print">
+          <div className="us-upload-card">
+            <h2>Upload Ultrasound Scan</h2>
+            <p>Select a clear JPG or PNG image of a kidney ultrasound for AI screening.</p>
+            
+            <div className="us-preview-area">
               {imagePreview ? (
-                <img src={imagePreview} alt="Kidney Ultrasound Preview" className="ultrasound-image-element" />
+                <img src={imagePreview} alt="Preview" className="us-image-preview-large" />
               ) : (
-                <div className="preview-placeholder">
-                  <Icon name="camera" size={48} />
-                  <span>No ultrasound image loaded</span>
-                  <p>Click below to select a JPG or PNG kidney ultrasound scan file.</p>
+                <div className="us-placeholder-large" onClick={triggerFileSelect}>
+                  <Icon name="camera" size={64} />
+                  <span>Click to browse files</span>
                 </div>
               )}
             </div>
 
-            <div className="preview-actions">
+            <div className="us-action-bar">
               <input 
                 type="file" 
                 ref={fileInputRef} 
@@ -162,88 +219,155 @@ export function UltrasoundPage({ showPage, result, setResult, metrics, setMetric
                 accept="image/*" 
                 style={{ display: 'none' }} 
               />
-              <button type="button" className="btn-upload-us" onClick={triggerFileSelect}>
-                <Icon name="clipboard" size={16} /> Upload Image
+              <button type="button" className="btn-secondary" onClick={triggerFileSelect}>
+                <Icon name="clipboard" size={16} /> Choose Image
               </button>
               <button 
                 type="button" 
-                className="btn-scan-us" 
+                className="btn-primary" 
                 onClick={runUltrasoundScan} 
-                disabled={!selectedFile || loading}
+                disabled={!selectedFile && !imagePreview}
               >
                 <Icon name="spark" size={16} /> Scan Image
               </button>
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Real-time Pipeline Logs */}
-          <div className="ultrasound-card logs-card">
-            <h3>Pipeline Process Logs</h3>
-            <div className="logs-terminal">
-              {logs.map((log, idx) => (
-                <div key={idx} className="log-line">
-                  <span className="log-arrow">&gt;</span> {log}
-                </div>
-              ))}
-              {logs.length === 0 && <div className="log-muted">Waiting to initiate screening pipeline...</div>}
+      {scanStep === 'scanning' && (
+        <div className="us-scanning-view no-print">
+          <div className="us-scanning-card">
+            <div className="scanning-animation-container">
+              <div className="scanner-beam"></div>
+              {imagePreview ? (
+                <img src={imagePreview} alt="Scanning" className="us-image-scanning" />
+              ) : (
+                <div className="us-placeholder-scanning"><Icon name="activity" size={48} /></div>
+              )}
             </div>
-            <div className="logs-disclaimer">
-              <strong>Disclaimer:</strong> AI screening support only. This is not a medical diagnosis or radiology report. Professional interpretation by a radiologist or nephrologist is always required.
+            <h3>Analyzing Kidney Architecture</h3>
+            <div className="us-progress-bar">
+              <div className="us-progress-fill" style={{ width: `${scanProgress}%` }}></div>
+            </div>
+            <div className="us-scanning-logs">
+              <p className="active-log-line">&gt; {logs[logs.length - 1] || 'Initializing...'}</p>
             </div>
           </div>
         </div>
+      )}
 
-        {/* Right Column: Metrics and Observations */}
-        <div className="ultrasound-right-panel">
-          {/* Quick Metrics display */}
-          <div className="ultrasound-metrics-grid">
-            <div className="u-metric-box">
-              <span className="u-metric-label">eGFR</span>
-              <span className="u-metric-val">{metrics ? `${metrics.egfr}` : '--'}</span>
-              <span className="u-metric-unit">mL/min/1.73m²</span>
-            </div>
-
-            <div className="u-metric-box">
-              <span className="u-metric-label">Probability of over Stage III</span>
-              <span className="u-metric-val">{metrics ? `${metrics.probability}%` : '--'}</span>
-              <span className="u-metric-unit">Confidence Clearance</span>
-            </div>
-
-            <div className="u-metric-box">
-              <span className="u-metric-label">Severity</span>
-              <span className={`u-metric-severity ${result ? result.severity.toLowerCase() : ''}`}>
-                {result ? result.severity : '--'}
-              </span>
-              <span className="u-metric-unit">
-                {result ? result.image_quality : 'Assess Quality'}
-              </span>
-            </div>
+      {scanStep === 'results' && (
+        <div className="us-results-view">
+          <div className="results-header print-only" style={{ display: 'none' }}>
+            <h1>NephroCare Ultrasound Report</h1>
+            <p>Generated on: {new Date().toLocaleDateString()}</p>
           </div>
-
-          {/* AI Observations Card */}
-          <div className="ultrasound-card observations-card">
-            <h3>AI Observations</h3>
-            {result ? (
-              <div className="observations-content animate-fade-in">
-                <ul className="obs-bullets-list">
-                  {result.observations.map((obs, idx) => (
-                    <li key={idx}>{obs}</li>
-                  ))}
-                </ul>
-                <div className="obs-recommendation-block">
-                  <strong>Recommendation:</strong>
-                  <p>{result.recommendation}</p>
+          
+          <div className="us-results-grid">
+            {/* Left Column */}
+            <div className="us-results-left">
+              <div className="us-card image-result-card">
+                <div className="us-card-header no-print">
+                  <h3>Scanned Image</h3>
+                </div>
+                {imagePreview ? (
+                  <img src={imagePreview} alt="Scanned Kidney" className="us-image-result" />
+                ) : (
+                  <div className="us-placeholder-small">No Image</div>
+                )}
+                
+                <div className="us-result-actions no-print">
+                  <button className="btn-secondary" onClick={handlePrint}>
+                    <Icon name="file-text" size={16} /> Download PDF
+                  </button>
+                  <button className="btn-secondary" onClick={resetScan}>
+                    <Icon name="camera" size={16} /> New Scan
+                  </button>
                 </div>
               </div>
-            ) : (
-              <div className="observations-placeholder">
-                <Icon name="report" size={32} />
-                <p>Run the AI screening pipeline to extract anatomical observations and recommendations.</p>
+
+              <div className="us-card logs-collapse-card no-print">
+                <div className="us-card-header cursor-pointer" onClick={() => setLogsOpen(!logsOpen)} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                  <h3 style={{display: 'flex', alignItems: 'center', gap: '8px'}}><Icon name="activity" size={16} /> Pipeline Logs</h3>
+                  <span className={`chevron ${logsOpen ? 'up' : ''}`}>▼</span>
+                </div>
+                {logsOpen && (
+                  <div className="us-logs-content" style={{padding: '16px', background: '#f8fafc', color: '#334155', fontFamily: 'monospace', fontSize: '13px', borderRadius: '0 0 12px 12px'}}>
+                    {logs.length > 0 ? logs.map((log, idx) => (
+                      <div key={idx} className="log-line" style={{marginBottom: '4px'}}>
+                        <span className="log-arrow" style={{marginRight: '8px', color: '#94a3b8'}}>&gt;</span> {log}
+                      </div>
+                    )) : (
+                      <div className="log-line" style={{marginBottom: '4px', fontStyle: 'italic', color: '#64748b'}}>
+                        <span className="log-arrow" style={{marginRight: '8px', color: '#94a3b8'}}>&gt;</span> Previous scan logs cleared. Result recovered from history.
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
+
+            {/* Right Column */}
+            <div className="us-results-right">
+              <div className="us-metrics-row">
+                <div className="u-metric-box">
+                  <span className="u-metric-label">Estimated eGFR</span>
+                  <span className="u-metric-val">{metrics ? `${metrics.egfr}` : '--'}</span>
+                  <span className="u-metric-unit">mL/min/1.73m²</span>
+                </div>
+                <div className="u-metric-box">
+                  <span className="u-metric-label">Stage III Risk</span>
+                  <span className="u-metric-val">{metrics ? `${metrics.probability}%` : '--'}</span>
+                  <span className="u-metric-unit">Confidence Clearance</span>
+                </div>
+                <div className="u-metric-box">
+                  <span className="u-metric-label">Severity</span>
+                  <span className={`u-metric-severity ${result ? result.severity.toLowerCase() : ''}`}>
+                    {result ? result.severity : '--'}
+                  </span>
+                  <span className="u-metric-unit">
+                    {result ? result.image_quality : 'Quality'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="us-card observations-card">
+                <div className="us-card-header">
+                  <h3>AI Observations</h3>
+                </div>
+                <div className="us-card-body">
+                  {result ? (
+                    <ul className="us-obs-list">
+                      {result.observations.map((obs, idx) => (
+                        <li key={idx} style={{marginBottom: '8px', paddingLeft: '16px', position: 'relative'}}><span style={{position: 'absolute', left: 0, color: 'var(--maroon)'}}>•</span>{obs}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>No observations available.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="us-card recommendations-card">
+                <div className="us-card-header">
+                  <h3>Clinical Recommendation</h3>
+                </div>
+                <div className="us-card-body">
+                  {result ? (
+                    <p className="us-recommendation-text">{result.recommendation}</p>
+                  ) : (
+                    <p>--</p>
+                  )}
+                </div>
+                <div className="us-disclaimer" style={{marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e2e8f0', fontSize: '12px', color: '#64748b'}}>
+                  <strong>Disclaimer:</strong> AI screening support only. This is not a medical diagnosis or radiology report. Professional interpretation by a radiologist or nephrologist is always required.
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </main>
   )
 }

@@ -8,9 +8,7 @@ export const features = [
   { icon: 'lab' as IconName, title: 'Lab Report Analysis' },
   { icon: 'food' as IconName, title: 'Food' },
   { icon: 'camera' as IconName, title: 'Ultrasound Analysis' },
-  { icon: 'message' as IconName, title: 'WhatsApp Assistant' },
-  { icon: 'heart' as IconName, title: 'Monitoring Dashboard' },
-  { icon: 'alert' as IconName, title: 'Early Warning Alerts' },
+  { icon: 'alert' as IconName, title: 'Smart Alerts' },
   { icon: 'report' as IconName, title: 'Doctor Summary Report' },
 ]
 
