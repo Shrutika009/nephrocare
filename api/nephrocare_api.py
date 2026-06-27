@@ -392,8 +392,8 @@ def classify_food(row: Any) -> dict[str, Any]:
     
     # Generate dynamic image URL using a placeholder service
     import urllib.parse
-    image_query = urllib.parse.quote(display_name.split(' ')[0] + " indian food")
-    image_url = f"https://loremflickr.com/400/300/{image_query}?lock={abs(hash(food_name)) % 1000}"
+    image_query = urllib.parse.quote(display_name + " food")
+    image_url = f"https://tse1.mm.bing.net/th?q={image_query}&pid=Api&w=400&h=300&c=7"
 
     return {
         "food_name": food_name,
@@ -1046,6 +1046,132 @@ def predict(lab: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+WEARABLE_SCENARIO = "normal"
+
+
+def set_wearable_scenario(scenario: str) -> None:
+    global WEARABLE_SCENARIO
+    if scenario in {"normal", "dehydration", "electrolyte", "fluid"}:
+        WEARABLE_SCENARIO = scenario
+    else:
+        WEARABLE_SCENARIO = "normal"
+
+
+def get_wearable_telemetry() -> dict[str, Any]:
+    import datetime
+    import random
+
+    rng = random.Random(42)
+    history = []
+    now = datetime.datetime.now()
+
+    for i in range(7):
+        days_ago = 6 - i
+        dt = now - datetime.timedelta(days=days_ago)
+        timestamp_str = dt.isoformat()
+        factor = i / 6.0
+
+        if WEARABLE_SCENARIO == "normal":
+            hr = round(72 + rng.uniform(-2, 2))
+            hrv = round(60 + rng.uniform(-3, 3))
+            spo2 = round(98 + rng.uniform(-0.5, 0.5))
+            temp = round(36.6 + rng.uniform(-0.1, 0.1), 1)
+            sweat_cond = round(14 + rng.uniform(-1, 1), 1)
+            bioimp = round(495 + rng.uniform(-5, 5))
+            ecg_anomaly = False
+            t_wave_amp = round(0.18 + rng.uniform(-0.02, 0.02), 2)
+            qrs_amp = round(1.2 + rng.uniform(-0.05, 0.05), 2)
+        elif WEARABLE_SCENARIO == "dehydration":
+            hr = round(72 + (90 - 72) * factor + rng.uniform(-2, 2))
+            hrv = round(60 - (60 - 28) * factor + rng.uniform(-3, 3))
+            spo2 = round(98 - (98 - 96.5) * factor + rng.uniform(-0.5, 0.5))
+            temp = round(36.6 + (37.2 - 36.6) * factor + rng.uniform(-0.1, 0.1), 1)
+            sweat_cond = round(14 + (36 - 14) * factor + rng.uniform(-1, 2), 1)
+            bioimp = round(495 + (545 - 495) * factor + rng.uniform(-5, 5))
+            ecg_anomaly = False
+            t_wave_amp = round(0.18 + rng.uniform(-0.02, 0.02), 2)
+            qrs_amp = round(1.2 + rng.uniform(-0.05, 0.05), 2)
+        elif WEARABLE_SCENARIO == "electrolyte":
+            hr = round(72 + (83 - 72) * factor + rng.uniform(-2, 2))
+            hrv = round(60 - (60 - 35) * factor + rng.uniform(-3, 3))
+            spo2 = round(98 - (98 - 97) * factor + rng.uniform(-0.5, 0.5))
+            temp = round(36.6 + rng.uniform(-0.1, 0.1), 1)
+            sweat_cond = round(14 + (60 - 14) * factor + rng.uniform(-2, 3), 1)
+            bioimp = round(495 - (495 - 475) * factor + rng.uniform(-5, 5))
+            ecg_anomaly = (days_ago <= 2)
+            t_wave_amp = round(0.18 + (0.72 - 0.18) * factor + rng.uniform(-0.02, 0.02), 2)
+            qrs_amp = round(1.2 - 0.1 * factor + rng.uniform(-0.05, 0.05), 2)
+        elif WEARABLE_SCENARIO == "fluid":
+            hr = round(72 + (85 - 72) * factor + rng.uniform(-2, 2))
+            hrv = round(60 - (60 - 25) * factor + rng.uniform(-3, 3))
+            spo2 = round(98 - (98 - 95) * factor + rng.uniform(-0.5, 0.5))
+            temp = round(36.6 + (37.4 - 36.6) * factor + rng.uniform(-0.1, 0.1), 1)
+            sweat_cond = round(14 + rng.uniform(-1, 1), 1)
+            bioimp = round(495 - (495 - 325) * factor + rng.uniform(-5, 5))
+            ecg_anomaly = False
+            t_wave_amp = round(0.18 + rng.uniform(-0.02, 0.02), 2)
+            qrs_amp = round(1.2 + rng.uniform(-0.05, 0.05), 2)
+
+        # AI Risk Engine Rules
+        hrv_dev = max(0.0, (60.0 - hrv) / 40.0)
+        sweat_dev = min(1.0, max(0.0, (sweat_cond - 14.0) / 50.0))
+        bioimp_dev = min(1.0, max(0.0, abs(bioimp - 495.0) / 200.0))
+        temp_dev = min(1.0, max(0.0, (temp - 36.6) / 1.2))
+
+        stress_idx = round((0.35 * hrv_dev + 0.25 * sweat_dev + 0.25 * bioimp_dev + 0.15 * temp_dev) * 100)
+        stress_idx = max(12, min(95, stress_idx))
+
+        if sweat_cond > 50:
+            elec_risk = "High"
+        elif sweat_cond > 28:
+            elec_risk = "Moderate"
+        else:
+            elec_risk = "Low"
+
+        if WEARABLE_SCENARIO == "dehydration" and factor > 0.6:
+            hydration = "Severe Dehydration"
+        elif WEARABLE_SCENARIO == "dehydration" and factor > 0.2:
+            hydration = "Mild Dehydration"
+        elif sweat_cond > 40:
+            hydration = "Mild Dehydration"
+        else:
+            hydration = "Hydrated"
+
+        if bioimp < 350:
+            fluid_ret = "Severe Retention"
+        elif bioimp < 420:
+            fluid_ret = "Mild Retention"
+        else:
+            fluid_ret = "Normal"
+
+        t_to_qrs_ratio = t_wave_amp / qrs_amp
+        hyperkalemia = (t_to_qrs_ratio > 0.50 and sweat_cond > 45)
+
+        history.append({
+            "timestamp": timestamp_str,
+            "heart_rate": hr,
+            "hrv": hrv,
+            "spo2": spo2,
+            "skin_temp": temp,
+            "sweat_conductivity": sweat_cond,
+            "bioimpedance": bioimp,
+            "ecg_anomaly": ecg_anomaly,
+            "kidney_stress_index": stress_idx,
+            "electrolyte_risk": elec_risk,
+            "hydration_status": hydration,
+            "fluid_retention": fluid_ret,
+            "hyperkalemia_pattern": hyperkalemia,
+            "t_wave_amplitude": t_wave_amp,
+            "qrs_amplitude": qrs_amp
+        })
+
+    return {
+        "current": history[-1],
+        "history": history,
+        "scenario": WEARABLE_SCENARIO
+    }
+
+
 class Handler(BaseHTTPRequestHandler):
     def end_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -1082,10 +1208,25 @@ class Handler(BaseHTTPRequestHandler):
                 "stages": ["G1", "G2", "G3a", "G3b", "G4", "G5"],
                 "status_labels": ["SAFE", "MODERATE", "AVOID"],
             })
+        elif self.path == "/api/wearable/telemetry":
+            self.respond(200, get_wearable_telemetry())
         else:
             self.respond(404, {"error": "Not found"})
 
     def do_POST(self) -> None:
+        if self.path == "/api/wearable/simulate":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length).decode("utf-8") if length else "{}"
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                self.respond(400, {"error": "Invalid JSON"})
+                return
+            scenario = str(payload.get("scenario", "normal")).lower()
+            set_wearable_scenario(scenario)
+            self.respond(200, get_wearable_telemetry())
+            return
+
         if self.path == "/api/send-whatsapp":
             length = int(self.headers.get("Content-Length", "0"))
             raw = self.rfile.read(length).decode("utf-8") if length else "{}"

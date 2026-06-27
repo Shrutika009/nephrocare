@@ -1,13 +1,13 @@
 import type { ChangeEvent } from 'react'
 import { Icon } from '../components/Icon'
 import { labInputLabels } from '../constants'
-import type { PredictionForm } from '../types'
+import type { PredictionForm, Page } from '../types'
 
 type LabReportPageProps = {
   handleReportUpload: (event: ChangeEvent<HTMLInputElement>) => void
   uploadStatus: string
   extractedFields: string[]
-  showPage: (page: string) => void
+  showPage: (page: Page) => void
 }
 
 export function LabReportPage({

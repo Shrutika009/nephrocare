@@ -12,6 +12,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { UltrasoundPage } from './pages/UltrasoundPage'
 import { DoctorSummaryPage } from './pages/DoctorSummaryPage'
 import { AlertsPage } from './pages/AlertsPage'
+import { WearablePage } from './pages/WearablePage'
 import { LabReportPage } from './pages/LabReportPage'
 import type { FoodAnalysis, FoodPlanResponse, FoodScanResponse, MealPlanResponse, Page, PredictionForm, PredictionResult, UltrasoundScanResult, Toast, ToastType } from './types'
 import { reportData } from './utils/format'
@@ -384,6 +385,7 @@ function App() {
     />}
     {page === 'doctor-summary' && <DoctorSummaryPage showPage={showPage} user={user} />}
     {page === 'alerts' && <AlertsPage showPage={showPage} user={user} addToast={addToast} />}
+    {page === 'wearable' && <WearablePage />}
     {page === 'lab-report' && <LabReportPage 
       handleReportUpload={handleReportUpload}
       uploadStatus={uploadStatus}
