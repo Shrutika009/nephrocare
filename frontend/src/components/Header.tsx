@@ -40,8 +40,8 @@ export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpe
       <button className="nav-link" onClick={() => scrollTo('resources')}>Resources</button>
     </nav>
     <div className="header-actions">
-      <button className="signup-button dashboard-tab" onClick={() => showPage('wearable')} style={{marginRight: '12px', background: '#0b7f72'}}>Wearable Twin</button>
-      <button className="signup-button dashboard-tab" onClick={() => showPage('chatbot')} style={{marginRight: '12px', background: '#236d9f'}}>AI Assistant</button>
+      <button className="signup-button dashboard-tab" onClick={() => showPage('wearable')} style={{marginRight: '12px', background: '#0b7f72', borderColor: '#0b7f72'}}>Wearable Twin</button>
+      <button className="signup-button dashboard-tab" onClick={() => showPage('chatbot')} style={{marginRight: '12px', background: '#236d9f', borderColor: '#236d9f'}}>AI Assistant</button>
       <button className="signup-button dashboard-tab" onClick={() => showPage('dashboard')} style={{marginRight: '12px'}}>Dashboard</button>
       {user ? (
         <div className="user-profile-container" ref={dropdownRef} style={{ position: 'relative' }}>

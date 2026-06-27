@@ -174,7 +174,7 @@ a {
 .login-button {
     background: #fff;
     color: var(--maroon);
-    border-color: #f4c5d0;
+    border-color: var(--maroon);
 }
 
 .login-button:hover {
