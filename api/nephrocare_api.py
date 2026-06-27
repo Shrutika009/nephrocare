@@ -1463,6 +1463,84 @@ class Handler(BaseHTTPRequestHandler):
             })
             return
 
+        if self.path == "/api/chatbot/chat":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length).decode("utf-8") if length else "{}"
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                self.respond(400, {"error": "Invalid JSON"})
+                return
+
+            user_message = payload.get("message", "")
+            language_code = payload.get("language", "en")
+            history_data = payload.get("history", [])
+            patient_context_data = payload.get("patient_context", {})
+
+            if not user_message:
+                self.respond(400, {"error": "Message is required"})
+                return
+
+            try:
+                import sys
+                sys.path.append(str(ROOT))
+                from models.chatbot import AdvancedAINephrologistChatbot, PatientContext, Language
+
+                # Convert language code to Enum
+                try:
+                    lang_enum = Language(language_code)
+                except ValueError:
+                    lang_enum = Language.ENGLISH
+
+                chatbot = AdvancedAINephrologistChatbot()
+                chatbot.language = lang_enum
+
+                # Map patient context if provided
+                if patient_context_data:
+                    context = PatientContext(
+                        user_id=patient_context_data.get("user_id", "default"),
+                        age=patient_context_data.get("age"),
+                        gender=patient_context_data.get("gender"),
+                        weight_kg=patient_context_data.get("weight_kg"),
+                        height_cm=patient_context_data.get("height_cm"),
+                        ckd_stage=patient_context_data.get("ckd_stage"),
+                        current_egfr=patient_context_data.get("current_egfr"),
+                        current_creatinine=patient_context_data.get("current_creatinine"),
+                        current_potassium=patient_context_data.get("current_potassium"),
+                        current_phosphorus=patient_context_data.get("current_phosphorus"),
+                        current_sodium=patient_context_data.get("current_sodium"),
+                        medications=patient_context_data.get("medications", []),
+                        comorbidities=patient_context_data.get("comorbidities", []),
+                        lab_history=patient_context_data.get("lab_history", []),
+                        dietary_restrictions=patient_context_data.get("dietary_restrictions", [])
+                    )
+                    chatbot.set_patient_context(context)
+
+                # Set conversation history
+                if history_data:
+                    chatbot.conversation_history = [
+                        {"role": h.get("role"), "content": h.get("content")}
+                        for h in history_data
+                    ]
+
+                # Run chat
+                response = chatbot.chat(user_message)
+
+                self.respond(200, {
+                    "assessment": response.assessment,
+                    "explanation": response.explanation,
+                    "educational_information": response.educational_information,
+                    "kidney_specific_guidance": response.kidney_specific_guidance,
+                    "questions_for_nephrologist": response.questions_for_nephrologist,
+                    "references": response.references,
+                    "emergency_detected": response.emergency_detected,
+                    "emergency_action": response.emergency_action,
+                    "confidence_score": response.confidence_score
+                })
+            except Exception as exc:
+                self.respond(500, {"error": f"Chatbot execution failed: {str(exc)}"})
+            return
+
         if self.path != "/api/predict":
             self.respond(404, {"error": "Not found"})
             return

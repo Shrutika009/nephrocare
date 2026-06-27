@@ -315,9 +315,28 @@ class MedicalKnowledgeBase:
                 print(f"Error adding document {doc_id}: {e}")
     
     def retrieve_relevant_guidelines(self, query: str, top_k: int = 3) -> List[str]:
-        """Retrieve relevant medical guidelines using semantic search."""
+        """Retrieve relevant medical guidelines using semantic search or keyword fallback."""
         if not self.collection:
-            return []
+            # Simple keyword-matching fallback
+            all_docs = {**self.kdigo_guidelines, **self.nkf_guidelines}
+            query_words = set(re.findall(r'\w+', query.lower()))
+            matches = []
+            for doc_id, content in all_docs.items():
+                content_words = set(re.findall(r'\w+', content.lower()))
+                intersection = query_words.intersection(content_words)
+                if intersection:
+                    matches.append((len(intersection), content))
+            # Sort by count of intersecting words descending
+            matches.sort(key=lambda x: x[0], reverse=True)
+            retrieved = [content for _, content in matches[:top_k]]
+            if not retrieved:
+                # Default fallback guidelines
+                retrieved = [
+                    all_docs.get("ckd_definition", ""),
+                    all_docs.get("potassium_management", ""),
+                    all_docs.get("sodium_management", "")
+                ]
+            return retrieved
         
         try:
             results = self.collection.query(
