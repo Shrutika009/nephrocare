@@ -38,11 +38,10 @@ export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpe
       <button className="nav-link feature-trigger" onClick={() => setFeaturesOpen(!featuresOpen)} aria-expanded={featuresOpen}>Features <span className={featuresOpen ? 'chevron up' : 'chevron'}>⌄</span></button>
       <button className="nav-link" onClick={() => scrollTo('about')}>About</button>
       <button className="nav-link" onClick={() => scrollTo('resources')}>Resources</button>
+      <button className="nav-link" onClick={() => showPage('wearable')}>Wearable Twin</button>
     </nav>
     <div className="header-actions">
-      <button className="signup-button dashboard-tab" onClick={() => showPage('wearable')} style={{marginRight: '12px', background: '#0b7f72', borderColor: '#0b7f72'}}>Wearable Twin</button>
       <button className="signup-button dashboard-tab" onClick={() => showPage('chatbot')} style={{marginRight: '12px', background: '#236d9f', borderColor: '#236d9f'}}>AI Assistant</button>
-      <button className="signup-button dashboard-tab" onClick={() => showPage('dashboard')} style={{marginRight: '12px'}}>Dashboard</button>
       {user ? (
         <div className="user-profile-container" ref={dropdownRef} style={{ position: 'relative' }}>
           <div className="user-profile" onClick={() => setUserMenuOpen(!userMenuOpen)} style={{ cursor: 'pointer', userSelect: 'none' }}>
@@ -89,7 +88,7 @@ export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpe
                 showPage('ckd-prediction');
               } else if (feature.title === 'Lab Report Analysis') {
                 showPage('lab-report');
-              } else if (feature.title === 'Food') {
+              } else if (feature.title === 'Nutrition & Intake Care' || feature.title === 'Food') {
                 showPage('food-tools');
               } else if (feature.title === 'Ultrasound Analysis') {
                 showPage('ultrasound');

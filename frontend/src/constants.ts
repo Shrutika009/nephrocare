@@ -5,11 +5,10 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0
 
 export const features = [
   { icon: 'activity' as IconName, title: 'CKD Risk Prediction' },
-  { icon: 'lab' as IconName, title: 'Lab Report Analysis' },
-  { icon: 'food' as IconName, title: 'Food' },
+  { icon: 'food' as IconName, title: 'Nutrition & Intake Care' },
   { icon: 'camera' as IconName, title: 'Ultrasound Analysis' },
   { icon: 'alert' as IconName, title: 'Smart Alerts' },
-  { icon: 'report' as IconName, title: 'Doctor Summary Report' },
+  { icon: 'chart' as IconName, title: 'Monitoring Dashboard' },
 ]
 
 export const initialPredictionForm: PredictionForm = {

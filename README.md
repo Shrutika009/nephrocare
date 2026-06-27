@@ -16,15 +16,12 @@ NephroCare brings CKD risk prediction, stage screening, lab report support, nutr
 |---|---|
 | **CKD Risk Prediction** | Predicts CKD / No CKD from clinical values (creatinine, hemoglobin, potassium, blood pressure, albumin, diabetes, hypertension) |
 | **CKD Stage Screening** | Estimates kidney function stage using eGFR and urine albumin-creatinine ratio |
-| **Lab Report Analysis** | Explains kidney-related values such as creatinine, eGFR, blood urea, sodium, potassium, and hemoglobin |
 | **Food Recommendation** | Suggests kidney-friendly foods based on CKD stage and health conditions |
 | **Food Safety Checker** | Evaluates whether a food item is Safe, Moderate, or Risky for CKD patients based on nutritional content |
 | **AI Meal Planner** | Generates personalized daily meal plans (breakfast, lunch, dinner, snacks) tailored to kidney health needs |
 | **WhatsApp Health Assistant** | Sends reminders for medications, appointments, lab tests, water intake, and dietary adherence |
-| **Symptom Tracker** | Monitors symptoms such as fatigue, swelling, nausea, appetite loss, and changes in urination |
 | **Monitoring Dashboard** | Tracks eGFR, creatinine, blood pressure, symptoms, and progress over time |
 | **Early Warning Alerts** | Flags worsening kidney function, abnormal lab values, missed checkups, or high-risk symptom patterns |
-| **Doctor Summary Report** | Generates a concise summary with CKD stage, lab results, symptom history, and key trends for consultations |
 
 ## Datasets Used
 
@@ -65,6 +62,40 @@ python3 -m venv .venv
 ```
 
 This will populate `data/processed/` with the cleaned CSVs used by the prediction and recommendation models.
+
+### Running the Application
+
+To launch both the Python API backend and the React frontend simultaneously, run the unified startup script:
+
+```bash
+bash scripts/run_nephrocare_demo.sh
+```
+
+This script starts:
+- The **Python API Server** at `http://127.0.0.1:8000`
+- The **Vite Frontend Dev Server** at `http://localhost:5175/`
+
+#### Running Backend & Frontend Separately
+
+If you want to run the components individually:
+
+**1. Start the API Backend:**
+```bash
+# From the project root directory
+.venv/bin/python api/nephrocare_api.py
+```
+
+**2. Start the Frontend:**
+```bash
+# Navigate to the frontend folder
+cd frontend
+
+# Install dependencies (first time only)
+npm install
+
+# Start the Vite dev server
+npm run dev
+```
 
 ##Disclaimer
 

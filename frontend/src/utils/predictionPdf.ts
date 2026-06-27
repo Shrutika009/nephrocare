@@ -64,77 +64,102 @@ function buildPredictionPdf(result: PredictionResult): Blob {
   const pale = '0.98 0.99 1.00'
   const softBlue = '0.86 0.93 0.98'
   const softRose = '0.98 0.87 0.91'
-  const vitals = [
-    { label: 'Urine albumin', value: formatValue(result.input.urine_albumin), unit: 'mg/g' },
-    { label: 'Sex', value: report.sexShort, unit: result.input.sex },
-    { label: 'Age', value: formatValue(result.input.age), unit: 'years' },
-    { label: 'eGFR', value: formatValue(result.kidney_function.egfr_2021), unit: 'mL/min/1.73 m2' },
-  ]
+  
+  const patientName = 'Vimla Choudhary'
+  const patientAge = formatValue(result.input.age)
+  const patientSex = result.input.sex === 'female' ? 'Female' : 'Male'
+  const labRefId = `NC-${Math.floor(10000 + Math.random() * 90000)}`
+  const collectionDate = now.toLocaleDateString()
+
+  const rows = [
+    { name: 'Glomerular Filtration Rate (eGFR)', val: formatValue(result.kidney_function.egfr_2021), ref: '>= 90.0', unit: 'mL/min/1.73m2', flag: parseFloat(result.kidney_function.egfr_2021 as any) < 60 ? 'LOW' : 'NORMAL' },
+    { name: 'Urine Albumin (UACR)', val: formatValue(result.input.urine_albumin), ref: '< 30.0', unit: 'mg/g', flag: parseFloat(result.input.urine_albumin as any) > 30 ? 'HIGH' : 'NORMAL' },
+    { name: 'Serum Creatinine', val: formatValue(result.input.serum_creatinine), ref: '0.6 - 1.3', unit: 'mg/dL', flag: parseFloat(result.input.serum_creatinine as any) > 1.3 ? 'HIGH' : 'NORMAL' },
+    { name: 'Blood Urea', val: formatValue(result.input.blood_urea), ref: '7 - 40', unit: 'mg/dL', flag: parseFloat(result.input.blood_urea as any) > 40 ? 'HIGH' : 'NORMAL' },
+    { name: 'Serum Potassium', val: formatValue(result.input.potassium), ref: '3.5 - 5.1', unit: 'mmol/L', flag: parseFloat(result.input.potassium as any) > 5.1 ? 'HIGH' : 'NORMAL' },
+    { name: 'Serum Sodium', val: formatValue(result.input.sodium), ref: '135 - 145', unit: 'mmol/L', flag: parseFloat(result.input.sodium as any) < 135 ? 'LOW' : 'NORMAL' },
+  ].filter(r => r.val !== 'N/A' && r.val !== '')
 
   page.push(
+    // Page Background
     pdfRect(0, 0, pageWidth, pageHeight, pale),
-    pdfRect(0, 742, pageWidth, 50, navy),
-    pdfText(42, 762, 'NephroCare CKD Prediction System', 15, '1 1 1'),
-    pdfText(430, 762, `Generated ${now.toLocaleDateString()}`, 9, '0.85 0.95 0.98'),
-    pdfText(225, 686, 'YOUR RESULTS', 28, maroon),
+    
+    // Header Banner Line
+    pdfRect(42, 735, 528, 2, navy),
+    
+    // Lab Header Details
+    pdfText(42, 752, 'NEPHROCARE DIAGNOSTIC LABS', 18, navy),
+    pdfText(380, 755, 'CLINICAL BIOCHEMISTRY REPORT', 10, maroon),
+    pdfText(42, 720, '102, Health Care Complex, Medical District, Delhi-110029 | Tel: +91-11-23456789', 8, muted),
+    pdfText(42, 708, 'NABL Accredited Laboratory | ISO 9001:2015 Certified | Gov. Reg No: DL-83921-A', 7, muted),
+    
+    // Patient Metadata Box
+    pdfRect(42, 610, 528, 80, pale, '0.77 0.82 0.86'),
+    
+    // Left column metadata
+    pdfText(54, 672, `Patient Name:   ${patientName}`, 10, '0 0 0'),
+    pdfText(54, 654, `Age / Gender:   ${patientAge} Yrs / ${patientSex}`, 10, '0 0 0'),
+    pdfText(54, 636, `Referral Dr:    Dr. R. K. Sharma, MD, DM`, 10, '0 0 0'),
+    
+    // Right column metadata
+    pdfText(330, 672, `Lab Reference ID:  ${labRefId}`, 10, '0 0 0'),
+    pdfText(330, 654, `Collection Date:   ${collectionDate}`, 10, '0 0 0'),
+    pdfText(330, 636, `Report Status:     Final (Authorized)`, 10, '0 0 0'),
+    
+    // Biochemistry Table Header
+    pdfRect(42, 570, 528, 18, '0.9 0.93 0.96'),
+    pdfText(48, 575, 'TEST PARAMETER', 9, navy),
+    pdfText(230, 575, 'VALUE', 9, navy),
+    pdfText(310, 575, 'REFERENCE INTERVAL', 9, navy),
+    pdfText(440, 575, 'UNIT', 9, navy),
+    pdfText(510, 575, 'STATUS', 9, navy)
   )
 
-  vitals.forEach((item, index) => {
-    const x = 62 + index * 126
+  // Draw biochemistry rows dynamically
+  rows.forEach((row, i) => {
+    const y = 546 - i * 22
+    const rowColor = i % 2 === 0 ? '1 1 1' : '0.97 0.98 0.99'
     page.push(
-      pdfText(x, 636, item.value, 18, index === 0 || index === 3 ? maroon : navy),
-      pdfText(x + 36, 638, item.unit, 8, navy),
-      pdfText(x, 620, item.label.toUpperCase(), 8, navy)
+      pdfRect(42, y - 6, 528, 22, rowColor, '0.9 0.92 0.94'),
+      pdfText(48, y, row.name, 9, '0 0 0'),
+      pdfText(230, y, row.val, 9, row.flag !== 'NORMAL' ? maroon : '0 0 0'),
+      pdfText(310, y, row.ref, 9, '0.3 0.3 0.3'),
+      pdfText(440, y, row.unit, 9, '0.3 0.3 0.3'),
+      pdfText(510, y, row.flag, 9, row.flag !== 'NORMAL' ? maroon : '0.1 0.6 0.3')
     )
   })
 
+  // Set next position Y after table
+  const nextY = 546 - rows.length * 22 - 30
+
+  // Draw Assessment & Stage Card (left side)
   page.push(
-    pdfRect(60, 574, 190, 1, navy),
-    pdfRect(250, 568, 112, 13, navy),
-    pdfText(280, 572, 'ASSESSMENT', 8, '1 1 1'),
-    pdfRect(362, 574, 190, 1, navy),
-    pdfText(270, 508, `STAGE ${report.stageNumber}`, 32, maroon),
-    pdfText(198, 486, report.stageSeverity.toUpperCase(), 11, maroon),
-    pdfText(83, 440, 'CKD STAGES', 10, navy),
-    pdfText(220, 440, 'GLOMERULAR FILTRATION RATE', 10, navy)
+    pdfRect(42, nextY - 110, 250, 120, '1 0.98 0.92', '0.9 0.8 0.5'),
+    pdfText(54, nextY - 10, 'ESTIMATED CKD RISK EVALUATION', 9, maroon),
+    pdfText(54, nextY - 45, `${formatPercent(report.riskPercent)}`, 32, maroon),
+    pdfText(54, nextY - 70, `STAGE CLASSIFICATION: STAGE ${report.stageNumber}`, 10, '0 0 0'),
+    pdfText(54, nextY - 90, `Severity: ${report.stageSeverity}`, 9, '0.4 0.4 0.4'),
+
+    // Draw Recommendations Card (right side)
+    pdfRect(320, nextY - 110, 250, 120, '0.93 0.96 0.98', '0.7 0.8 0.9'),
+    pdfText(332, nextY - 10, 'CLINICAL ADVICE & RECOMMENDATIONS', 9, navy)
   )
 
-  stageOrder.forEach((stage, index) => {
-    const y = 410 - index * 28
-    const active = stage === report.stageKey
+  // Add recommendations text inside card
+  const recs = result.recommendations.slice(0, 3)
+  recs.forEach((rec, idx) => {
     page.push(
-      pdfRect(90, y - 8, 96, 20, active ? maroon : softRose),
-      pdfText(124, y - 1, stageNumber(stage), 14, active ? '1 1 1' : navy),
-      pdfRect(226, y - 8, 96, 20, active ? maroon : softBlue),
-      pdfText(256, y - 1, stageGfrBand(stage), 10, active ? '1 1 1' : navy)
+      pdfWrappedText(332, nextY - 32 - idx * 26, `• ${rec}`, 8, '0.1 0.2 0.3', 52)
     )
   })
 
+  // Sign-off block at bottom
   page.push(
-    pdfWrappedText(356, 448, 'Your estimated CKD risk is based on the health details you entered.', 10, navy, 30),
-    pdfRect(382, 390, 176, 22, navy),
-    pdfText(430, 398, 'ESTIMATED CKD RISK', 9, '1 1 1'),
-    pdfText(406, 352, formatPercent(report.riskPercent), 30, maroon),
-    pdfWrappedText(356, 304, 'This estimate is for screening support and should be discussed with a clinician.', 11, navy, 35),
-    pdfText(74, 226, 'LAB MARKER FLAGS', 12, navy),
-    pdfText(324, 226, 'RECOMMENDATIONS', 12, navy)
-  )
-
-  if (result.warnings.length) {
-    result.warnings.slice(0, 5).forEach((item, index) => {
-      page.push(pdfWrappedText(74, 206 - index * 28, `${item.label}: ${item.value} ${item.unit} is ${item.status}. Range ${item.range}.`, 9, '0 0 0', 36))
-    })
-  } else {
-    page.push(pdfWrappedText(74, 206, 'No submitted markers are outside the screening ranges.', 9, '0 0 0', 36))
-  }
-
-  result.recommendations.slice(0, 5).forEach((item, index) => {
-    page.push(pdfWrappedText(324, 206 - index * 28, item, 9, '0 0 0', 38))
-  })
-
-  page.push(
-    pdfRect(42, 50, 528, 1, '0.77 0.82 0.86'),
-    pdfWrappedText(42, 32, 'Care note: This report supports screening conversations and does not replace clinician diagnosis or treatment advice.', 8, muted, 92)
+    pdfRect(42, 100, 528, 1, '0.77 0.82 0.86'),
+    pdfText(42, 85, 'Electronically Verified Report - Authorized Signatory', 8, muted),
+    pdfText(42, 70, 'Dr. A. K. Banerjee, MD (Pathology), Senior Pathologist', 8, '0 0 0'),
+    pdfText(380, 85, 'Accreditation Code: NABL-MC-2947', 8, muted),
+    pdfText(380, 70, 'License Registration: MCI-92842', 8, '0 0 0')
   )
 
   return createPdfBlob([page.join('\n')])

@@ -23,7 +23,10 @@ from enum import Enum
 from dotenv import load_dotenv
 from google import genai
 from PIL import Image
-import fitz  # PyMuPDF for PDF parsing
+try:
+    import fitz  # PyMuPDF for PDF parsing
+except ImportError:
+    fitz = None
 import numpy as np
 from dataclasses import dataclass, asdict
 
@@ -370,6 +373,9 @@ class LabReportAnalyzer:
     @staticmethod
     def extract_text_from_pdf(pdf_path: str) -> str:
         """Extract text from PDF using PyMuPDF."""
+        if not fitz:
+            print("PyMuPDF is not installed. PDF extraction is unavailable.")
+            return ""
         try:
             doc = fitz.open(pdf_path)
             text = ""
@@ -612,14 +618,6 @@ YOUR CAPABILITIES:
 7. Personalization: Consider patient-specific factors
 8. Multi-language: Respond in patient's preferred language
 
-RESPONSE STRUCTURE:
-1. Assessment - Plain language interpretation
-2. Explanation - Why this matters for kidneys
-3. Educational Information - Evidence-based guidance
-4. Kidney-Specific Guidance - Practical recommendations
-5. Questions for Nephrologist - What to discuss with doctor
-6. References - Guidelines and sources
-
 PATIENT CONTEXT:
 Age: {age}
 Gender: {gender}
@@ -633,6 +631,7 @@ MEDICAL KNOWLEDGE (Retrieved):
 {retrieved_guidelines}
 
 INSTRUCTIONS:
+- Answer the user's question directly, clearly, and concisely in natural paragraphs. Do not use headers like "Assessment:" or "Explanation:".
 - Use science-backed information from KDIGO/NKF guidelines
 - Consider patient's specific kidney function stage
 - Check for drug interactions with listed medications
@@ -932,10 +931,23 @@ Respond entirely in the patient's language. Use medical terms appropriately for 
                 })
             
             # Call Gemini with system prompt
+            from google.genai import types
+            formatted_contents = []
+            for msg in messages:
+                role = "user" if msg["role"] == "user" else "model"
+                formatted_contents.append(
+                    types.Content(
+                        role=role,
+                        parts=[types.Part.from_text(text=msg["content"])]
+                    )
+                )
+
             response = self.client.models.generate_content(
                 model="gemini-2.5-flash",
-                contents=messages,
-                system_prompt=system_prompt
+                contents=formatted_contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt
+                )
             )
             
             response_text = response.text
@@ -968,48 +980,13 @@ Respond entirely in the patient's language. Use medical terms appropriately for 
     def _parse_medical_response(self, response_text: str, 
                                 tool_results: List[str]) -> MedicalResponse:
         """Parse Gemini response into structured medical response."""
-        lines = response_text.split('\n')
-        
-        sections = {
-            "assessment": "",
-            "explanation": "",
-            "educational_information": "",
-            "kidney_specific_guidance": "",
-            "questions_for_nephrologist": [],
-            "references": []
-        }
-        
-        current_section = None
-        
-        for line in lines:
-            line_lower = line.lower()
-            
-            if "assessment" in line_lower and ":" in line:
-                current_section = "assessment"
-            elif "explanation" in line_lower and ":" in line:
-                current_section = "explanation"
-            elif "educational" in line_lower and ":" in line:
-                current_section = "educational_information"
-            elif "kidney" in line_lower and "specific" in line_lower and ":" in line:
-                current_section = "kidney_specific_guidance"
-            elif "question" in line_lower and "nephrolog" in line_lower and ":" in line:
-                current_section = "questions_for_nephrologist"
-            elif "reference" in line_lower and ":" in line:
-                current_section = "references"
-            elif current_section:
-                if current_section in ["questions_for_nephrologist", "references"]:
-                    if line.strip().startswith(("-", "*", "•", "1", "2", "3")):
-                        sections[current_section].append(line.strip().lstrip("-*•0123456789. "))
-                else:
-                    sections[current_section] += line + "\n"
-        
         return MedicalResponse(
-            assessment=sections["assessment"].strip() or "Analyzing your health information...",
-            explanation=sections["explanation"].strip() or "Your question relates to kidney health management.",
-            educational_information=sections["educational_information"].strip() or "General CKD education provided above.",
-            kidney_specific_guidance=sections["kidney_specific_guidance"].strip() or "Please consult your nephrologist for personalized guidance.",
-            questions_for_nephrologist=sections["questions_for_nephrologist"][:5] if sections["questions_for_nephrologist"] else ["What is my current kidney function status?", "Should I adjust my diet?"],
-            references=["KDIGO Clinical Practice Guidelines for CKD", "NKF KDOQI Guidelines", "Gemini AI-powered medical knowledge"]
+            assessment=response_text.strip(),
+            explanation="",
+            educational_information="",
+            kidney_specific_guidance="",
+            questions_for_nephrologist=[],
+            references=[]
         )
     
     def get_conversation_summary(self) -> str:

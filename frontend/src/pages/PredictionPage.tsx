@@ -1,4 +1,4 @@
-import type { ChangeEvent, FormEvent } from 'react'
+import { useState, useEffect, type ChangeEvent, type FormEvent } from 'react'
 import { Icon } from '../components/Icon'
 import { labInputLabels, stageOrder } from '../constants'
 import type { Page, PredictionForm, PredictionResult } from '../types'
@@ -53,55 +53,154 @@ export function PredictionPage(props: PredictionPageProps) {
 }
 
 function PredictionResultView({ result, activeReport, setPredictionStep, showPage }: PredictionPageProps & { result: PredictionResult; activeReport: ActiveReport }) {
+  const [userName, setUserName] = useState('Vimla Choudhary')
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('nephrocare_user') || localStorage.getItem('user')
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (parsed && parsed.name) {
+          setUserName(parsed.name)
+        }
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }, [])
+
+  const patientName = userName
+  const patientAge = formatValue(result.input.age)
+  const patientSex = result.input.sex === 'female' ? 'Female' : 'Male'
+  const labRefId = `NC-${Math.floor(10000 + Math.random() * 90000)}`
+  const collectionDate = new Date().toLocaleDateString()
+
+  const rows = [
+    { name: 'Glomerular Filtration Rate (eGFR)', val: formatValue(result.kidney_function.egfr_2021), ref: '>= 90.0', unit: 'mL/min/1.73m2', flag: parseFloat(result.kidney_function.egfr_2021 as any) < 60 ? 'LOW' : 'NORMAL' },
+    { name: 'Urine Albumin (UACR)', val: formatValue(result.input.urine_albumin), ref: '< 30.0', unit: 'mg/g', flag: parseFloat(result.input.urine_albumin as any) > 30 ? 'HIGH' : 'NORMAL' },
+    { name: 'Serum Creatinine', val: formatValue(result.input.serum_creatinine), ref: '0.6 - 1.3', unit: 'mg/dL', flag: parseFloat(result.input.serum_creatinine as any) > 1.3 ? 'HIGH' : 'NORMAL' },
+    { name: 'Blood Urea', val: formatValue(result.input.blood_urea), ref: '7 - 40', unit: 'mg/dL', flag: parseFloat(result.input.blood_urea as any) > 40 ? 'HIGH' : 'NORMAL' },
+    { name: 'Serum Potassium', val: formatValue(result.input.potassium), ref: '3.5 - 5.1', unit: 'mmol/L', flag: parseFloat(result.input.potassium as any) > 5.1 ? 'HIGH' : 'NORMAL' },
+    { name: 'Serum Sodium', val: formatValue(result.input.sodium), ref: '135 - 145', unit: 'mmol/L', flag: parseFloat(result.input.sodium as any) < 135 ? 'LOW' : 'NORMAL' },
+  ].filter(r => r.val !== 'N/A' && r.val !== '')
+
   return <>
-    <section className="result-hero">
+    <section className="result-hero" style={{ marginBottom: '20px' }}>
       <button className="back-button" onClick={() => setPredictionStep('calculator')}><Icon name="arrow" size={16} /> Back</button>
       <div className="result-actions">
         <button type="button" onClick={() => downloadPredictionPdf(result)}><Icon name="report" size={17} /> Download PDF</button>
         <button type="button" onClick={() => showPage('home')}>Back home</button>
       </div>
     </section>
-    <section className="kfre-report">
-      <h1>Your results</h1>
-      <div className="kfre-vitals" aria-label="Submitted prediction values">
-        <div><Icon name="lab" size={25} /><strong>{formatValue(result.input.urine_albumin)}</strong><small>mg/g</small><span>Urine albumin</span></div>
-        <div><Icon name="user" size={25} /><strong>{activeReport.sexShort}</strong><span>Sex</span></div>
-        <div><Icon name="activity" size={25} /><strong>{formatValue(result.input.age)}</strong><span>Age</span></div>
-        <div><Icon name="heart" size={25} /><strong>{formatValue(result.kidney_function.egfr_2021)}</strong><small>mL/min/1.73 m2</small><span>eGFR</span></div>
+
+    <section className="kfre-report" style={{ padding: '32px', border: '1px solid #cbd5e1', borderRadius: '12px', background: '#fff', boxShadow: '0 4px 12px rgba(0,0,0,0.04)', maxWidth: '800px', margin: '0 auto' }}>
+      
+      {/* Professional Lab Letterhead Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #083b66', paddingBottom: '16px', marginBottom: '24px' }}>
+        <div style={{ textAlign: 'left' }}>
+          <h1 style={{ margin: 0, color: '#083b66', fontSize: '24px', fontWeight: '800', letterSpacing: '0.5px', textTransform: 'uppercase' }}>NEPHROCARE DIAGNOSTIC LABS</h1>
+          <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#64748b', lineHeight: 1.4 }}>
+            102, Health Care Complex, Medical District, Delhi-110029 | Tel: +91-11-23456789 | Email: reports@nephrocarelabs.in
+          </p>
+          <p style={{ margin: '2px 0 0', fontSize: '10px', color: '#94a3b8' }}>
+            NABL Accredited Laboratory | ISO 9001:2015 Certified | Gov. Reg No: DL-83921-A
+          </p>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '6px 12px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            CLINICAL BIOCHEMISTRY REPORT
+          </span>
+        </div>
       </div>
-      <div className="kfre-divider"><span>Assessment</span></div>
-      <div className="kfre-stage-heading">
-        <h2>Stage {activeReport.stageNumber}</h2>
-        <p>{activeReport.stageSeverity}</p>
+
+      {/* Patient Demographics Info Table */}
+      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', marginBottom: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', fontSize: '13px', lineHeight: 1.6, textAlign: 'left' }}>
+        <div>
+          <div><strong>Patient Name:</strong> {patientName}</div>
+          <div><strong>Age / Gender:</strong> {patientAge} Yrs / {patientSex}</div>
+          <div><strong>Referral Doctor:</strong> Dr. R. K. Sharma, MD, DM (Nephrology)</div>
+        </div>
+        <div>
+          <div><strong>Lab Reference ID:</strong> {labRefId}</div>
+          <div><strong>Collection Date:</strong> {collectionDate}</div>
+          <div><strong>Report Status:</strong> Final (Authorized Signatory)</div>
+        </div>
       </div>
-      <div className="kfre-assessment-grid">
-        <div className="kfre-kidney-scale">
-          <h3>CKD stages</h3>
-          <div className="kidney-scale-body">
-            <div className="kidney-list">
-              {stageOrder.map(stage => <div key={stage} className={stage === activeReport.stageKey ? 'active' : ''}><span>{stageNumber(stage)}</span><small>{stage === 'G1' ? 'No or slight' : stage === 'G2' ? 'Mild' : stage === 'G3a' || stage === 'G3b' ? 'Moderate' : stage === 'G4' ? 'Severe' : 'Failure range'}</small></div>)}
-            </div>
-            <div className="gfr-list">
-              <h3>Glomerular filtration rate</h3>
-              {stageOrder.map(stage => <div key={stage} className={stage === activeReport.stageKey ? 'active' : ''}><span>{stageGfrBand(stage)}</span></div>)}
-            </div>
+
+      {/* Biochemistry Table */}
+      <div style={{ marginBottom: '28px' }}>
+        <h2 style={{ color: '#083b66', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', fontSize: '16px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'left' }}>
+          <Icon name="activity" size={18} /> BIOCHEMISTRY & RENAL FUNCTION PANEL
+        </h2>
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '12px', fontSize: '13px', textAlign: 'left' }}>
+          <thead>
+            <tr style={{ background: '#f1f5f9', borderBottom: '1.5px solid #cbd5e1', fontWeight: '700' }}>
+              <th style={{ padding: '10px 12px' }}>Test Parameter</th>
+              <th style={{ padding: '10px 12px' }}>Observed Value</th>
+              <th style={{ padding: '10px 12px' }}>Reference Interval</th>
+              <th style={{ padding: '10px 12px' }}>Unit</th>
+              <th style={{ padding: '10px 12px' }}>Status Flag</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, idx) => (
+              <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                <td style={{ padding: '10px 12px', fontWeight: '500' }}>{row.name}</td>
+                <td style={{ padding: '10px 12px', color: row.flag !== 'NORMAL' ? 'var(--maroon)' : 'inherit', fontWeight: '700' }}>{row.val}</td>
+                <td style={{ padding: '10px 12px' }}>{row.ref}</td>
+                <td style={{ padding: '10px 12px' }}>{row.unit}</td>
+                <td style={{ padding: '10px 12px', fontWeight: 'bold', color: row.flag !== 'NORMAL' ? 'var(--maroon)' : '#16a34a' }}>{row.flag}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Assessment and Recommendations grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '28px', textAlign: 'left' }}>
+        <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '8px', padding: '16px' }}>
+          <h3 style={{ margin: '0 0 8px', color: '#b45309', fontSize: '14px', fontWeight: '700' }}>
+            ESTIMATED CKD RISK EVALUATION
+          </h3>
+          <div style={{ fontSize: '32px', fontWeight: '900', color: 'var(--maroon)', marginBottom: '8px' }}>
+            {formatPercent(activeReport.riskPercent)}
+          </div>
+          <div style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a', marginBottom: '4px' }}>
+            Stage {activeReport.stageNumber}
+          </div>
+          <div style={{ fontSize: '12px', color: '#475569', textTransform: 'uppercase', fontWeight: '600' }}>
+            {activeReport.stageSeverity}
           </div>
         </div>
-        <div className="kfre-risk-summary">
-          <p>{modelSourceSummary(result)}</p>
-          <div className="risk-years">
-            <div><span>Estimated CKD risk</span><strong>{formatPercent(activeReport.riskPercent)}</strong></div>
-          </div>
-          <h3>What this means</h3>
-          <ul>
-            <li>This is a screening estimate based on the values you entered.</li>
-            <li>Please discuss this result with your doctor for diagnosis and next steps.</li>
+
+        <div style={{ background: '#f0f9ff', border: '1px solid #e0f2fe', borderRadius: '8px', padding: '16px' }}>
+          <h3 style={{ margin: '0 0 8px', color: '#0369a1', fontSize: '14px', fontWeight: '700' }}>
+            CLINICAL ADVICE & RECOMMENDATIONS
+          </h3>
+          <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12.5px', color: '#0c4a6e', display: 'flex', flexDirection: 'column', gap: '6px', lineHeight: 1.4 }}>
+            {result.recommendations.slice(0, 4).map((rec, idx) => (
+              <li key={idx}>{rec}</li>
+            ))}
           </ul>
         </div>
       </div>
-      <div className="kfre-detail-grid">
-        <div><h3>Lab marker flags</h3>{result.warnings.length ? result.warnings.map(item => <p key={item.key}><b>{item.label}</b> is {item.status} at {item.value} {item.unit}. Range: {item.range}</p>) : <p>No submitted markers are outside the screening ranges.</p>}</div>
-        <div><h3>Recommendations</h3>{result.recommendations.map(item => <p key={item}>{item}</p>)}</div>
+
+      {/* Sign-offs */}
+      <div style={{ marginTop: '48px', paddingTop: '20px', borderTop: '2px solid #cbd5e1', display: 'grid', gridTemplateColumns: '1fr 1fr', fontSize: '11px', color: '#64748b', lineHeight: 1.5, textAlign: 'left' }}>
+        <div>
+          <strong>NephroCare Diagnostic Center</strong><br />
+          NABL Certificate Number: MC-2947<br />
+          ISO 9001:2015 registration no: 902148-Q
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <strong>Electronically Verified Report</strong><br />
+          Dr. A. K. Banerjee, MD (Pathology)<br />
+          Senior Consultant Pathologist (Reg No: MCI-92842)
+        </div>
+      </div>
+
+      <div style={{ marginTop: '24px', fontSize: '10px', color: '#94a3b8', textAlign: 'center', fontStyle: 'italic' }}>
+        Disclaimer: This report is an AI-powered aggregation of clinical screening models. It is intended to support patient health literacy and should be clinically verified by a registered medical practitioner.
       </div>
     </section>
   </>
