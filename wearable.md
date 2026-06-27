@@ -1,8 +1,8 @@
-# NephroCare Wearable Patch — Hardware & AI Risk Engine Architecture
+# NephroCare Wearable Patch - Hardware & AI Risk Engine Architecture
 
 ## 1. Why this hardware design exists
 
-Conventional CKD diagnosis relies on blood tests (creatinine) and urine tests (albumin) — both invasive or non-real-time, lab-dependent, and prone to sample contamination or low quantification accuracy. The wearable approach instead samples peripheral biofluids (interstitial fluid and sweat) continuously and non-invasively at the skin surface, streaming data through a phone to a cloud-based "Digital CKD clinic" for remote monitoring and preventive care.
+Conventional CKD diagnosis relies on blood tests (creatinine) and urine tests (albumin) - both invasive or non-real-time, lab-dependent, and prone to sample contamination or low quantification accuracy. The wearable approach instead samples peripheral biofluids (interstitial fluid and sweat) continuously and non-invasively at the skin surface, streaming data through a phone to a cloud-based "Digital CKD clinic" for remote monitoring and preventive care.
 
 NephroCare's hardware is built around this same blood/urine → wearable shift, but scoped honestly to what a hackathon-stage, non-lab-grade patch can actually deliver: **physiological proxy signals and trend detection**, not lab-equivalent biomarker quantification.
 
