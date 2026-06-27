@@ -4,7 +4,7 @@
 
 ## Problem Statement
 
-Chronic Kidney Disease (CKD) is a silent, progressive condition that often goes undetected until significant kidney damage has occurred. Patients face delayed diagnosis, limited access to nephrologists, difficulty interpreting lab reports, lack of personalized nutrition guidance, and inadequate long-term monitoring — all of which worsen health outcomes and drive up healthcare costs.
+Chronic Kidney Disease (CKD) is a silent, progressive condition that often goes undetected until significant kidney damage has occurred. Patients face delayed diagnosis, limited access to nephrologists, difficulty interpreting lab reports, lack of personalized nutrition guidance, and inadequate long-term monitoring - all of which worsen health outcomes and drive up healthcare costs.
 
 ## Solution
 
@@ -68,4 +68,4 @@ This will populate `data/processed/` with the cleaned CSVs used by the predictio
 
 ##Disclaimer
 
-NHANES stage labels are **screening labels, not confirmed medical diagnoses**. CKD diagnosis requires clinical confirmation and persistence over time. NephroCare is intended to support — not replace — professional medical advice.
+NHANES stage labels are **screening labels, not confirmed medical diagnoses**. CKD diagnosis requires clinical confirmation and persistence over time. NephroCare is intended to support - not replace - professional medical advice.

@@ -43,7 +43,7 @@ print("Loading:", env_path)
 
 load_dotenv(env_path)
 
-API_KEY = os.getenv("GEMINI_API_KEY")
+API_KEY = os.getenv("GEMINI_API_CHATBOT") or os.getenv("GEMINI_API_KEY")
 if API_KEY:
     client = genai.Client(api_key=API_KEY)
 
@@ -649,7 +649,7 @@ Respond entirely in the patient's language. Use medical terms appropriately for 
     def __init__(self, language: Language = Language.ENGLISH):
         """Initialize advanced chatbot."""
         if not API_KEY:
-            raise ValueError("GEMINI_API_KEY not set")
+            raise ValueError("Neither GEMINI_API_CHATBOT nor GEMINI_API_KEY is set in environment")
         
         self.client = client
         self.language = language
