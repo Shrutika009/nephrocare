@@ -864,7 +864,7 @@
     .dashboard-page > *:not(.report-modal-overlay) {
         display: none !important;
     }
-    .site-shell > *:not(.dashboard-page) {
+    .site-shell > *:not(.dashboard-page):not(.ultrasound-page-container) {
         display: none !important;
     }
     .dashboard-page {

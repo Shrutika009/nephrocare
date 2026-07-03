@@ -21,6 +21,13 @@ def run_cnn_ultrasound_analysis(image_path_str: str) -> dict:
     Executes deep learning CNN analysis on a kidney ultrasound scan.
     Returns predicted class, probabilities, uncertainty metrics, and base64-encoded visual overlays.
     """
+    import random
+    random.seed(42)
+    np.random.seed(42)
+    torch.manual_seed(42)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(42)
+
     ROOT = Path(__file__).resolve().parents[1]
     weights_path = ROOT / "models" / "kidney_ultrasound_model.pth"
     
