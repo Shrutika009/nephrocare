@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Icon } from '../components/Icon'
 import { API_BASE_URL } from '../constants'
 import type { TelemetryData, WearableResponse } from '../types'
@@ -96,12 +96,271 @@ const PIN_DETAILS: Record<string, PinDetail> = {
   }
 }
 
+interface Point3D {
+  x: number
+  y: number
+  z: number
+}
+
+interface RotatingKidney3DCanvasProps {
+  stressScore: number
+  riskLevel: 'Low' | 'Moderate' | 'High'
+}
+
+interface Polygon {
+  p1: { x: number; y: number; z: number }
+  p2: { x: number; y: number; z: number }
+  p3: { x: number; y: number; z: number }
+  p4: { x: number; y: number; z: number }
+  avgZ: number
+}
+
+export function RotatingKidney3DCanvas({ stressScore, riskLevel }: RotatingKidney3DCanvasProps) {
+  const canvasRef = React.useRef<HTMLCanvasElement>(null)
+
+  React.useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    let animationId: number
+    let angle = 0
+
+    const generateKidneyPoints = (isLeft: boolean): Point3D[] => {
+      const points: Point3D[] = []
+      const uSteps = 16
+      const vSteps = 16
+      const scale = 23
+
+      for (let i = 0; i < uSteps; i++) {
+        const u = (i / uSteps) * Math.PI * 2
+        for (let j = 0; j < vSteps; j++) {
+          const v = (j / vSteps) * Math.PI - Math.PI / 2
+
+          let x = Math.cos(v) * Math.cos(u)
+          let y = Math.sin(v)
+          let z = Math.cos(v) * Math.sin(u)
+
+          // 1. Flatten the kidney slightly in anterior-posterior (Z) dimension
+          z *= 0.62
+
+          // 2. Adjust proportions to look like a real vertical organ
+          x *= 1.15
+          y *= 2.45
+
+          // 3. Apply C-shape bend along the Y-axis (tapered at poles)
+          const bendFactor = 1.0 - (y * y) / (2.45 * 2.45)
+          const bendAmt = 0.55 * bendFactor
+          if (isLeft) {
+            x = x - bendAmt
+          } else {
+            x = x + bendAmt
+          }
+
+          // 4. Create deep renal hilum indentation facing the center
+          const hilumAngle = isLeft ? 0 : Math.PI
+          const angleDiff = Math.abs(u - hilumAngle)
+          const normalizedDiff = Math.min(angleDiff, Math.PI * 2 - angleDiff)
+          const hilumDepth = 0.45 * Math.exp(-2.6 * Math.pow(normalizedDiff, 2)) * bendFactor
+          
+          if (isLeft) {
+            x = x - hilumDepth
+          } else {
+            x = x + hilumDepth
+          }
+
+          // 5. Position symmetric layout
+          const finalX = isLeft ? (x - 1.05) * scale : (x + 1.05) * scale
+          const finalY = y * scale
+          const finalZ = z * scale
+
+          points.push({ x: finalX, y: finalY, z: finalZ })
+        }
+      }
+      return points
+    }
+
+    const leftKidney = generateKidneyPoints(true)
+    const rightKidney = generateKidneyPoints(false)
+
+    const render = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      const width = canvas.width
+      const height = canvas.height
+      const centerX = width / 2
+      const centerY = height / 2
+
+      // Background ambient glow
+      const glowGrad = ctx.createRadialGradient(centerX, centerY, 5, centerX, centerY, 130)
+      if (riskLevel === 'High') {
+        glowGrad.addColorStop(0, 'rgba(160, 20, 50, 0.16)')
+      } else if (riskLevel === 'Moderate') {
+        glowGrad.addColorStop(0, 'rgba(245, 158, 11, 0.08)')
+      } else {
+        glowGrad.addColorStop(0, 'rgba(16, 185, 129, 0.08)')
+      }
+      glowGrad.addColorStop(1, 'rgba(0,0,0,0)')
+      ctx.fillStyle = glowGrad
+      ctx.fillRect(0, 0, width, height)
+
+      const cosY = Math.cos(angle)
+      const sinY = Math.sin(angle)
+      const tiltX = 0.22
+      const cosX = Math.cos(tiltX)
+      const sinX = Math.sin(tiltX)
+
+      const projectPoints = (points: Point3D[]) => {
+        return points.map(p => {
+          const ryx = p.x * cosY - p.z * sinY
+          const ryz = p.x * sinY + p.z * cosY
+          const rxx = ryx
+          const rxy = p.y * cosX - ryz * sinX
+          const rxz = p.y * sinX + ryz * cosX
+
+          const scalePersp = 260 / (260 + rxz)
+          const projX = centerX + rxx * scalePersp
+          const projY = centerY + rxy * scalePersp
+
+          return { x: projX, y: projY, z: rxz }
+        })
+      }
+
+      const leftProj = projectPoints(leftKidney)
+      const rightProj = projectPoints(rightKidney)
+
+      const steps = 16
+      const polygons: Polygon[] = []
+
+      const buildPolys = (processed: { x: number; y: number; z: number }[]) => {
+        for (let uIdx = 0; uIdx < steps; uIdx++) {
+          for (let vIdx = 0; vIdx < steps; vIdx++) {
+            const i1 = (uIdx * steps) + vIdx
+            const i2 = (((uIdx + 1) % steps) * steps) + vIdx
+            const i3 = (((uIdx + 1) % steps) * steps) + ((vIdx + 1) % steps)
+            const i4 = (uIdx * steps) + ((vIdx + 1) % steps)
+
+            const p1 = processed[i1]
+            const p2 = processed[i2]
+            const p3 = processed[i3]
+            const p4 = processed[i4]
+
+            const avgZ = (p1.z + p2.z + p3.z + p4.z) / 4
+            polygons.push({ p1, p2, p3, p4, avgZ })
+          }
+        }
+      }
+
+      buildPolys(leftProj)
+      buildPolys(rightProj)
+
+      // Depth sort polygons (Painter's algorithm: draw back first)
+      polygons.sort((a, b) => b.avgZ - a.avgZ)
+
+      // Light source vector (front, top, right)
+      const lx = 0.38
+      const ly = -0.38
+      const lz = -0.84
+
+      polygons.forEach(poly => {
+        // Face normal calculation
+        const ax = poly.p2.x - poly.p1.x
+        const ay = poly.p2.y - poly.p1.y
+        const az = poly.p2.z - poly.p1.z
+
+        const bx = poly.p4.x - poly.p1.x
+        const by = poly.p4.y - poly.p1.y
+        const bz = poly.p4.z - poly.p1.z
+
+        let nx = ay * bz - az * by
+        let ny = az * ax - ax * bz
+        let nz = ax * by - ay * bx
+
+        const len = Math.sqrt(nx * nx + ny * ny + nz * nz)
+        if (len > 0) {
+          nx /= len
+          ny /= len
+          nz /= len
+        }
+
+        // Shading intensity
+        const dot = nx * lx + ny * ly + nz * lz
+        const intensity = 0.38 + 0.62 * Math.max(0, dot)
+
+        // Base color theme
+        let r = 16, g = 185, b = 129
+        if (riskLevel === 'High') {
+          r = 160; g = 20; b = 50
+        } else if (riskLevel === 'Moderate') {
+          r = 245; g = 158; b = 11
+        }
+
+        const fillR = Math.round(r * intensity)
+        const fillG = Math.round(g * intensity)
+        const fillB = Math.round(b * intensity)
+
+        // Fog factor for depth cueing
+        const fog = Math.max(0.18, Math.min(1.0, (140 - poly.avgZ) / 185))
+        const fillStyle = `rgba(${fillR}, ${fillG}, ${fillB}, ${0.85 * fog})`
+        const strokeStyle = `rgba(${Math.round(r * 1.15 * intensity)}, ${Math.round(g * 1.15 * intensity)}, ${Math.round(b * 1.15 * intensity)}, ${0.15 * fog})`
+
+        ctx.fillStyle = fillStyle
+        ctx.strokeStyle = strokeStyle
+        ctx.lineWidth = 0.45
+
+        ctx.beginPath()
+        ctx.moveTo(poly.p1.x, poly.p1.y)
+        ctx.lineTo(poly.p2.x, poly.p2.y)
+        ctx.lineTo(poly.p3.x, poly.p3.y)
+        ctx.lineTo(poly.p4.x, poly.p4.y)
+        ctx.closePath()
+        ctx.fill()
+        ctx.stroke()
+      })
+
+      angle += 0.015
+      animationId = requestAnimationFrame(render)
+    }
+
+    render()
+    return () => cancelAnimationFrame(animationId)
+  }, [stressScore, riskLevel])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={400}
+      height={230}
+      style={{
+        display: 'block',
+        background: '#090d16',
+        borderRadius: '16px',
+        border: '1px solid #1e293b',
+        boxShadow: 'inset 0 0 24px rgba(0,0,0,0.85)',
+        width: '100%'
+      }}
+    />
+  )
+}
+
 export function WearablePage() {
   const [telemetry, setTelemetry] = useState<WearableResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedPin, setSelectedPin] = useState<string>('G34')
   const [submittingScenario, setSubmittingScenario] = useState(false)
+
+  // Interactive Digital Twin Configuration Panel State
+  const [isManualMode, setIsManualMode] = useState(false)
+  const [twinInputs, setTwinInputs] = useState({
+    hr: 72,
+    hrv: 65,
+    temperature: 36.6,
+    waterIntake: 2000,
+    age: 45,
+    weight: 70,
+    stage: 'Stage 1'
+  })
 
   // Fetch telemetry
   const fetchTelemetry = async () => {
@@ -139,7 +398,29 @@ export function WearablePage() {
 
   useEffect(() => {
     fetchTelemetry()
+    const interval = setInterval(() => {
+      fetchTelemetry()
+    }, 2000)
+    return () => clearInterval(interval)
   }, [])
+
+  const current = telemetry?.current
+  const history = telemetry?.history || []
+  const activeScenario = telemetry?.scenario || 'normal'
+
+  // Sync inputs with live telemetry values when in Live Mode
+  useEffect(() => {
+    if (current && !isManualMode) {
+      setTwinInputs(prev => ({
+        ...prev,
+        hr: current.heart_rate,
+        hrv: current.hrv,
+        temperature: current.skin_temp,
+        stage: activeScenario === 'electrolyte' ? 'Stage 4' : activeScenario === 'fluid' ? 'Stage 3' : activeScenario === 'dehydration' ? 'Stage 2' : 'Stage 1',
+        waterIntake: activeScenario === 'dehydration' ? 500 : activeScenario === 'fluid' ? 800 : activeScenario === 'electrolyte' ? 1000 : 2200
+      }))
+    }
+  }, [telemetry, activeScenario, isManualMode])
 
   if (loading) {
     return (
@@ -151,10 +432,6 @@ export function WearablePage() {
     )
   }
 
-  const current = telemetry?.current
-  const history = telemetry?.history || []
-  const activeScenario = telemetry?.scenario || 'normal'
-
   // Format date for chart labels (e.g. "Day 1", "Day 2"...)
   const chartData = history.map((item, idx) => ({
     ...item,
@@ -165,22 +442,39 @@ export function WearablePage() {
     formattedHR: `${item.heart_rate} bpm`
   }))
 
-  // Decide kidney glow CSS class based on stress index
-  let kidneyGlowClass = 'kidney-glow-low'
-  let stressColor = '#10b981' // emerald
-  let stressCategory = 'Low Stress'
+  // Calculate real-time AI outputs
+  const waterFactor = Math.min(100, (twinInputs.waterIntake / 2500) * 100)
+  const tempDehydration = Math.max(0, (twinInputs.temperature - 36.8) * 15)
+  const hrDehydration = Math.max(0, (twinInputs.hr - 75) * 0.2)
+  const hydrationScore = Math.max(0, Math.min(100, Math.round(waterFactor - tempDehydration - hrDehydration)))
 
-  if (current) {
-    if (current.kidney_stress_index > 65) {
-      kidneyGlowClass = 'kidney-glow-high'
-      stressColor = '#a01432' // nephrocare maroon
-      stressCategory = 'Severe Stress'
-    } else if (current.kidney_stress_index > 35) {
-      kidneyGlowClass = 'kidney-glow-mod'
-      stressColor = '#f59e0b' // amber
-      stressCategory = 'Moderate Stress'
-    }
+  const hrvStress = Math.max(0, (70 - twinInputs.hrv) * 0.8)
+  const hrStress = Math.max(0, (twinInputs.hr - 80) * 0.5)
+  const tempStress = Math.abs(twinInputs.temperature - 36.7) * 12
+  const hydrStress = Math.max(0, (70 - hydrationScore) * 0.7)
+  
+  const stageMap: Record<string, number> = {
+    'Stage 1': 10,
+    'Stage 2': 25,
+    'Stage 3': 45,
+    'Stage 4': 70,
+    'Stage 5': 90
   }
+  const stageBaseline = stageMap[twinInputs.stage] || 10
+
+  const stressScore = Math.max(0, Math.min(100, Math.round(
+    (hrvStress + hrStress + tempStress + hydrStress) * 0.4 + stageBaseline * 0.6
+  )))
+
+  let riskLevel: 'Low' | 'Moderate' | 'High' = 'Low'
+  if (stressScore > 65) {
+    riskLevel = 'High'
+  } else if (stressScore > 35) {
+    riskLevel = 'Moderate'
+  }
+
+  const stressColor = riskLevel === 'High' ? '#a01432' : riskLevel === 'Moderate' ? '#f59e0b' : '#10b981'
+  const stressCategory = riskLevel === 'High' ? 'Severe Stress' : riskLevel === 'Moderate' ? 'Moderate Stress' : 'Low Stress'
 
   return (
     <div className="wearable-page-container">
@@ -200,60 +494,208 @@ export function WearablePage() {
       )}
 
       <div className="wearable-grid">
-        {/* LEFT COLUMN: Digital Kidney Twin Visualization */}
+        {/* LEFT COLUMN: Digital Kidney Twin & Configurator Panel */}
         <section className="wearable-card">
-          <h2>
-            <Icon name="spark" size={22} />
-            Digital Kidney Twin
-          </h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #f3f4f6', paddingBottom: '12px' }}>
+            <h2 style={{ margin: 0, border: 'none', padding: 0 }}>
+              <Icon name="spark" size={22} />
+              Digital Kidney Twin
+            </h2>
+            
+            {/* Mode Selector Toggle */}
+            <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold' }}>
+              <button 
+                type="button" 
+                onClick={() => setIsManualMode(false)}
+                style={{ padding: '4px 8px', border: 'none', background: !isManualMode ? 'white' : 'transparent', color: !isManualMode ? '#0f172a' : '#64748b', borderRadius: '6px', boxShadow: !isManualMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', cursor: 'pointer' }}
+              >
+                Telemetry Mode
+              </button>
+              <button 
+                type="button" 
+                onClick={() => setIsManualMode(true)}
+                style={{ padding: '4px 8px', border: 'none', background: isManualMode ? 'white' : 'transparent', color: isManualMode ? '#0f172a' : '#64748b', borderRadius: '6px', boxShadow: isManualMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', cursor: 'pointer' }}
+              >
+                Interactive Twin
+              </button>
+            </div>
+          </div>
+
           <div className="digital-twin-container">
-            <div className="twin-visualization">
-              <div className="kidney-svg-wrapper">
-                {/* Left Kidney */}
-                <svg className={`kidney-svg ${kidneyGlowClass}`} viewBox="0 0 100 150" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M50 10 C20 10, 10 40, 10 80 C10 120, 30 140, 50 140 C70 140, 60 100, 50 80 C40 60, 50 30, 50 10 Z" />
-                </svg>
-                {/* Right Kidney */}
-                <svg className={`kidney-svg ${kidneyGlowClass}`} viewBox="0 0 100 150" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M50 10 C80 10, 90 40, 90 80 C90 120, 70 140, 50 140 C30 140, 40 100, 50 80 C60 60, 50 30, 50 10 Z" />
-                </svg>
-              </div>
+            <div className="twin-visualization" style={{ width: '100%', height: 'auto', marginBottom: '20px' }}>
+              <RotatingKidney3DCanvas stressScore={stressScore} riskLevel={riskLevel} />
             </div>
 
-            {current && (
-              <div className="stress-metrics-panel">
-                <div className="stress-index-value" style={{ color: stressColor }}>
-                  {current.kidney_stress_index}%
-                </div>
-                <div className="stress-label">{stressCategory} Index</div>
-                <div className="stress-progress-bar">
-                  <div
-                    className="stress-progress-fill"
-                    style={{
-                      width: `${current.kidney_stress_index}%`,
-                      backgroundColor: stressColor
-                    }}
-                  />
-                </div>
+            <div className="stress-metrics-panel" style={{ width: '100%' }}>
+              <div className="stress-index-value" style={{ color: stressColor, fontSize: '38px', fontWeight: 900 }}>
+                {stressScore}%
+              </div>
+              <div className="stress-label" style={{ fontWeight: 'bold', fontSize: '13.5px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                {stressCategory} Index
+              </div>
+              
+              <div className="stress-progress-bar" style={{ height: '8px', background: '#e2e8f0', borderRadius: '4px', margin: '12px 0 20px', overflow: 'hidden' }}>
+                <div
+                  className="stress-progress-fill"
+                  style={{
+                    width: `${stressScore}%`,
+                    backgroundColor: stressColor,
+                    height: '100%',
+                    transition: 'width 0.4s ease'
+                  }}
+                />
+              </div>
 
-                <div className="twin-quick-metrics">
-                  <div className="quick-metric-tile">
-                    <span>Hydration</span>
-                    <strong>{current.hydration_status}</strong>
-                  </div>
-                  <div className="quick-metric-tile">
-                    <span>Electrolytes</span>
-                    <strong>{current.electrolyte_risk} Risk</strong>
-                  </div>
-                  <div className="quick-metric-tile">
-                    <span>Fluid Retention</span>
-                    <strong>{current.fluid_retention}</strong>
-                  </div>
-                  <div className="quick-metric-tile">
-                    <span>ECG Path</span>
-                    <strong>{current.hyperkalemia_pattern ? 'Anomaly Detected' : 'Normal'}</strong>
-                  </div>
+              {/* AI outputs */}
+              <div className="twin-quick-metrics">
+                <div className="quick-metric-tile">
+                  <span>Hydration</span>
+                  <strong style={{ color: hydrationScore < 50 ? '#a01432' : '#083b66' }}>{hydrationScore}%</strong>
                 </div>
+                <div className="quick-metric-tile">
+                  <span>Kidney Stress</span>
+                  <strong style={{ color: stressScore > 65 ? '#a01432' : '#083b66' }}>{stressScore}%</strong>
+                </div>
+                <div className="quick-metric-tile">
+                  <span>Risk Level</span>
+                  <strong style={{ color: stressColor }}>{riskLevel}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Configuration inputs */}
+          <div style={{ marginTop: '24px', borderTop: '1px solid #e5e7eb', paddingTop: '20px', textAlign: 'left' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h3 style={{ margin: 0, fontSize: '15px', color: '#083b66', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Icon name="lab" size={16} /> Twin Configurator {isManualMode ? '(Interactive)' : '(Locked to Telemetry)'}
+              </h3>
+              {isManualMode && (
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setTwinInputs({ hr: 72, hrv: 65, temperature: 36.6, waterIntake: 2000, age: 45, weight: 70, stage: 'Stage 1' })
+                  }} 
+                  style={{ fontSize: '11px', color: '#083b66', background: '#f1f5f9', border: 'none', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer' }}
+                >
+                  Reset Inputs
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', opacity: isManualMode ? 1 : 0.65, pointerEvents: isManualMode ? 'auto' : 'none', transition: 'opacity 0.2s' }}>
+              
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#475569' }}>
+                <span style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <strong>Heart Rate:</strong>
+                  <span>{twinInputs.hr} bpm</span>
+                </span>
+                <input 
+                  type="range" 
+                  min="40" 
+                  max="180" 
+                  value={twinInputs.hr} 
+                  onChange={(e) => setTwinInputs({ ...twinInputs, hr: parseInt(e.target.value) })} 
+                  style={{ width: '100%', accentColor: stressColor }} 
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#475569' }}>
+                <span style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <strong>Heart Rate Variability (HRV):</strong>
+                  <span>{twinInputs.hrv} ms</span>
+                </span>
+                <input 
+                  type="range" 
+                  min="5" 
+                  max="150" 
+                  value={twinInputs.hrv} 
+                  onChange={(e) => setTwinInputs({ ...twinInputs, hrv: parseInt(e.target.value) })} 
+                  style={{ width: '100%', accentColor: stressColor }} 
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#475569' }}>
+                <span style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <strong>Skin Temperature:</strong>
+                  <span>{twinInputs.temperature.toFixed(1)} °C</span>
+                </span>
+                <input 
+                  type="range" 
+                  min="35" 
+                  max="41" 
+                  step="0.1"
+                  value={twinInputs.temperature} 
+                  onChange={(e) => setTwinInputs({ ...twinInputs, temperature: parseFloat(e.target.value) })} 
+                  style={{ width: '100%', accentColor: stressColor }} 
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#475569' }}>
+                <span style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <strong>Water Intake:</strong>
+                  <span>{twinInputs.waterIntake} ml</span>
+                </span>
+                <input 
+                  type="range" 
+                  min="0" 
+                  max="4000" 
+                  step="50"
+                  value={twinInputs.waterIntake} 
+                  onChange={(e) => setTwinInputs({ ...twinInputs, waterIntake: parseInt(e.target.value) })} 
+                  style={{ width: '100%', accentColor: stressColor }} 
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#475569' }}>
+                <span style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <strong>Patient Age:</strong>
+                  <span>{twinInputs.age} Yrs</span>
+                </span>
+                <input 
+                  type="range" 
+                  min="5" 
+                  max="100" 
+                  value={twinInputs.age} 
+                  onChange={(e) => setTwinInputs({ ...twinInputs, age: parseInt(e.target.value) })} 
+                  style={{ width: '100%', accentColor: stressColor }} 
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#475569' }}>
+                <span style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <strong>Patient Weight:</strong>
+                  <span>{twinInputs.weight} kg</span>
+                </span>
+                <input 
+                  type="range" 
+                  min="30" 
+                  max="150" 
+                  value={twinInputs.weight} 
+                  onChange={(e) => setTwinInputs({ ...twinInputs, weight: parseInt(e.target.value) })} 
+                  style={{ width: '100%', accentColor: stressColor }} 
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#475569', gridColumn: 'span 2' }}>
+                <strong>Existing Kidney Disease Stage:</strong>
+                <select 
+                  value={twinInputs.stage} 
+                  onChange={(e) => setTwinInputs({ ...twinInputs, stage: e.target.value })}
+                  style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', color: '#0f172a', fontWeight: 'bold' }}
+                >
+                  <option value="Stage 1">Stage 1: Normal or high GFR (eGFR &ge; 90)</option>
+                  <option value="Stage 2">Stage 2: Mild GFR decrease (eGFR 60-89)</option>
+                  <option value="Stage 3">Stage 3: Moderate GFR decrease (eGFR 30-59)</option>
+                  <option value="Stage 4">Stage 4: Severe GFR decrease (eGFR 15-29)</option>
+                  <option value="Stage 5">Stage 5: Kidney failure (eGFR &lt; 15)</option>
+                </select>
+              </label>
+            </div>
+
+            {!isManualMode && (
+              <div style={{ marginTop: '12px', background: '#f8fafc', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '11px', color: '#64748b' }}>
+                💡 <strong>Telemetry Locked Mode:</strong> Sliders are currently linked to the ESP32 sensor simulation values. Click <strong>"Interactive Twin"</strong> at the top right of this card to unlock sliders and manually configure patient telemetry trends.
               </div>
             )}
           </div>

@@ -1047,6 +1047,7 @@ def predict(lab: dict[str, Any]) -> dict[str, Any]:
 
 
 WEARABLE_SCENARIO = "normal"
+HARDWARE_TELEMETRY = None
 
 
 def set_wearable_scenario(scenario: str) -> None:
@@ -1165,6 +1166,52 @@ def get_wearable_telemetry() -> dict[str, Any]:
             "qrs_amplitude": qrs_amp
         })
 
+    global HARDWARE_TELEMETRY
+    if HARDWARE_TELEMETRY:
+        current = history[-1].copy()
+        
+        hr = round(HARDWARE_TELEMETRY.get("heart_rate", current["heart_rate"]))
+        hrv = round(HARDWARE_TELEMETRY.get("hrv", current["hrv"]))
+        spo2 = round(HARDWARE_TELEMETRY.get("spo2", current["spo2"]), 1)
+        temp = round(HARDWARE_TELEMETRY.get("skin_temp", current["skin_temp"]), 1)
+        sweat_cond = round(HARDWARE_TELEMETRY.get("sweat_conductivity", current["sweat_conductivity"]), 1)
+        bioimp = round(HARDWARE_TELEMETRY.get("bioimpedance", current["bioimpedance"]))
+        
+        t_wave_amp = round(HARDWARE_TELEMETRY.get("t_wave_amplitude", current["t_wave_amplitude"]), 2)
+        qrs_amp = round(HARDWARE_TELEMETRY.get("qrs_amplitude", current["qrs_amplitude"]), 2)
+        
+        hrv_dev = max(0.0, (60.0 - hrv) / 40.0)
+        sweat_dev = min(1.0, max(0.0, (sweat_cond - 14.0) / 50.0))
+        bioimp_dev = min(1.0, max(0.0, abs(bioimp - 495.0) / 200.0))
+        temp_dev = min(1.0, max(0.0, (temp - 36.6) / 1.2))
+        
+        stress_idx = round((0.35 * hrv_dev + 0.25 * sweat_dev + 0.25 * bioimp_dev + 0.15 * temp_dev) * 100)
+        stress_idx = max(12, min(95, stress_idx))
+        
+        elec_risk = "High" if sweat_cond > 50 else "Moderate" if sweat_cond > 28 else "Low"
+        hydration = "Severe Dehydration" if (sweat_cond > 40 or hrv < 30) else "Hydrated"
+        fluid_ret = "Severe Retention" if bioimp < 350 else "Mild Retention" if bioimp < 420 else "Normal"
+        
+        t_to_qrs_ratio = t_wave_amp / qrs_amp
+        hyperkalemia = (t_to_qrs_ratio > 0.50 and sweat_cond > 45)
+        
+        current.update({
+            "heart_rate": hr,
+            "hrv": hrv,
+            "spo2": spo2,
+            "skin_temp": temp,
+            "sweat_conductivity": sweat_cond,
+            "bioimpedance": bioimp,
+            "kidney_stress_index": stress_idx,
+            "electrolyte_risk": elec_risk,
+            "hydration_status": hydration,
+            "fluid_retention": fluid_ret,
+            "hyperkalemia_pattern": hyperkalemia,
+            "t_wave_amplitude": t_wave_amp,
+            "qrs_amplitude": qrs_amp
+        })
+        history[-1] = current
+
     return {
         "current": history[-1],
         "history": history,
@@ -1214,6 +1261,19 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(404, {"error": "Not found"})
 
     def do_POST(self) -> None:
+        if self.path == "/api/wearable/telemetry":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length).decode("utf-8") if length else "{}"
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                self.respond(400, {"error": "Invalid JSON"})
+                return
+            global HARDWARE_TELEMETRY
+            HARDWARE_TELEMETRY = payload
+            self.respond(200, {"ok": True, "message": "Telemetry updated from hardware successfully", "telemetry": get_wearable_telemetry()})
+            return
+
         if self.path == "/api/wearable/simulate":
             length = int(self.headers.get("Content-Length", "0"))
             raw = self.rfile.read(length).decode("utf-8") if length else "{}"
