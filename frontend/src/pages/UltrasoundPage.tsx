@@ -19,6 +19,7 @@ export function UltrasoundPage({ showPage, result, setResult, metrics, setMetric
   const [logs, setLogs] = useState<string[]>([])
   const [logsOpen, setLogsOpen] = useState(false)
   const [scanProgress, setScanProgress] = useState(0)
+  const [activeVisual, setActiveVisual] = useState<'original' | 'gradcam' | 'attention'>('original')
   
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -55,6 +56,7 @@ export function UltrasoundPage({ showPage, result, setResult, metrics, setMetric
     setSelectedFile(null)
     setLogs([])
     setScanStep('upload')
+    setActiveVisual('original')
   }
 
   const handlePrint = () => {
@@ -105,11 +107,11 @@ export function UltrasoundPage({ showPage, result, setResult, metrics, setMetric
     const logSteps = [
       'Initializing secure connection...',
       'Loading Gemini Vision model parameters...',
-      'Preprocessing ultrasound image...',
-      'Enhancing contrast and edge detection...',
-      'Running AI screening pipeline...',
-      'Analyzing cortical thickness and echogenicity...',
-      'Finalizing recommendations...'
+      'Loading PyTorch EfficientNetB0-CBAM weights...',
+      'Preprocessing ultrasound image scan...',
+      'Running CNN Deep Learning path (Grad-CAM & MC Dropout)...',
+      'Running Gemini LLM vision analysis path...',
+      'Consolidating diagnostics and recommendations...'
     ]
 
     for (let i = 0; i < logSteps.length; i++) {
@@ -269,15 +271,52 @@ export function UltrasoundPage({ showPage, result, setResult, metrics, setMetric
             <div className="us-results-left">
               <div className="us-card image-result-card">
                 <div className="us-card-header no-print">
-                  <h3>Scanned Image</h3>
+                  <h3>Ultrasound Visualization</h3>
                 </div>
-                {imagePreview ? (
-                  <img src={imagePreview} alt="Scanned Kidney" className="us-image-result" />
-                ) : (
-                  <div className="us-placeholder-small">No Image</div>
-                )}
                 
-                <div className="us-result-actions no-print">
+                {result?.gcam_img_base64 && result?.attention_img_base64 && (
+                  <div className="us-visual-tabs no-print" style={{display: 'flex', gap: '8px', padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0'}}>
+                    <button 
+                      type="button" 
+                      className={activeVisual === 'original' ? 'btn-primary' : 'btn-secondary'} 
+                      style={{padding: '4px 10px', fontSize: '12px', flex: 1}}
+                      onClick={() => setActiveVisual('original')}
+                    >
+                      Original
+                    </button>
+                    <button 
+                      type="button" 
+                      className={activeVisual === 'gradcam' ? 'btn-primary' : 'btn-secondary'} 
+                      style={{padding: '4px 10px', fontSize: '12px', flex: 1}}
+                      onClick={() => setActiveVisual('gradcam')}
+                    >
+                      Grad-CAM
+                    </button>
+                    <button 
+                      type="button" 
+                      className={activeVisual === 'attention' ? 'btn-primary' : 'btn-secondary'} 
+                      style={{padding: '4px 10px', fontSize: '12px', flex: 1}}
+                      onClick={() => setActiveVisual('attention')}
+                    >
+                      Attention
+                    </button>
+                  </div>
+                )}
+
+                <div style={{padding: '16px', display: 'flex', justifyContent: 'center', background: '#fff'}}>
+                  {activeVisual === 'original' && imagePreview && (
+                    <img src={imagePreview} alt="Original Scan" className="us-image-result" style={{maxHeight: '300px', objectFit: 'contain'}} />
+                  )}
+                  {activeVisual === 'gradcam' && result?.gcam_img_base64 && (
+                    <img src={`data:image/jpeg;base64,${result.gcam_img_base64}`} alt="Grad-CAM Focus Map" className="us-image-result" style={{maxHeight: '300px', objectFit: 'contain'}} />
+                  )}
+                  {activeVisual === 'attention' && result?.attention_img_base64 && (
+                    <img src={`data:image/jpeg;base64,${result.attention_img_base64}`} alt="CBAM Attention Map" className="us-image-result" style={{maxHeight: '300px', objectFit: 'contain'}} />
+                  )}
+                  {!imagePreview && <div className="us-placeholder-small">No Image</div>}
+                </div>
+                
+                <div className="us-result-actions no-print" style={{borderTop: '1px solid #e2e8f0'}}>
                   <button className="btn-secondary" onClick={handlePrint}>
                     <Icon name="file-text" size={16} /> Download PDF
                   </button>
@@ -287,7 +326,50 @@ export function UltrasoundPage({ showPage, result, setResult, metrics, setMetric
                 </div>
               </div>
 
-              <div className="us-card logs-collapse-card no-print">
+              {result?.cnn_predicted_class && (
+                <div className="us-card cnn-probability-card" style={{marginTop: '16px'}}>
+                  <div className="us-card-header">
+                    <h3>CNN Diagnostic Classifier</h3>
+                  </div>
+                  <div className="us-card-body" style={{padding: '16px'}}>
+                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px'}}>
+                      <span style={{fontWeight: 'bold', fontSize: '14px', color: '#1e293b'}}>
+                        Prediction: <span style={{color: 'var(--maroon)', fontSize: '15px'}}>{result.cnn_predicted_class}</span>
+                      </span>
+                      <span style={{fontSize: '12px', color: '#64748b'}}>
+                        Confidence: {(result.cnn_confidence! * 100).toFixed(1)}% ± {(result.cnn_confidence_std! * 100).toFixed(1)}%
+                      </span>
+                    </div>
+
+                    {result.cnn_warning && (
+                      <div style={{padding: '8px 12px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '8px', color: '#991b1b', fontSize: '12px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                        <span>⚠️</span>
+                        <span><strong>High Uncertainty:</strong> Entropy ({result.cnn_entropy?.toFixed(3)}) indicates stochastic variance.</span>
+                      </div>
+                    )}
+
+                    <div className="cnn-bars-container" style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                      {["Normal", "Cyst", "Stone", "Hydronephrosis", "Other abnormality"].map((cls, idx) => {
+                        const prob = result.cnn_probabilities?.[idx] || 0;
+                        const colors = ["#10b981", "#3b82f6", "#ef4444", "#f59e0b", "#8b5cf6"];
+                        return (
+                          <div key={cls} style={{fontSize: '12px'}}>
+                            <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '2px'}}>
+                              <span style={{color: '#475569', fontWeight: '500'}}>{cls}</span>
+                              <span style={{color: '#334155', fontWeight: '600'}}>{(prob * 100).toFixed(1)}%</span>
+                            </div>
+                            <div style={{height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden'}}>
+                              <div style={{height: '100%', background: colors[idx], width: `${prob * 100}%`, borderRadius: '4px', transition: 'width 0.4s ease'}}></div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="us-card logs-collapse-card no-print" style={{marginTop: '16px'}}>
                 <div className="us-card-header cursor-pointer" onClick={() => setLogsOpen(!logsOpen)} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                   <h3 style={{display: 'flex', alignItems: 'center', gap: '8px'}}><Icon name="activity" size={16} /> Pipeline Logs</h3>
                   <span className={`chevron ${logsOpen ? 'up' : ''}`}>▼</span>

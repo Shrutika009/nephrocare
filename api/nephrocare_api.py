@@ -1439,6 +1439,16 @@ class Handler(BaseHTTPRequestHandler):
                     sys.path.append(str(ROOT / "frontend"))
                     from ultrasound_scanner import analyze_ultrasound
                     result = analyze_ultrasound(str(image_path))
+                    
+                    # Run custom CNN Deep Learning analysis
+                    try:
+                        from api.ultrasound_pipeline import run_cnn_ultrasound_analysis
+                        cnn_result = run_cnn_ultrasound_analysis(str(image_path))
+                        result.update(cnn_result)
+                    except Exception as cnn_exc:
+                        print(f"CNN Ultrasound analysis failed: {cnn_exc}")
+                        result["cnn_error"] = str(cnn_exc)
+                        
                     self.respond(200, result)
                 except Exception as exc:
                     self.respond(500, {"error": f"Ultrasound analysis failed: {str(exc)}"})

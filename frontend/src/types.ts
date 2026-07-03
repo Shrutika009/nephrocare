@@ -65,6 +65,17 @@ export type UltrasoundScanResult = {
   severity: string
   recommendation: string
   error?: string
+  cnn_predicted_class?: string
+  cnn_confidence?: number
+  cnn_confidence_std?: number
+  cnn_probabilities?: number[]
+  cnn_std_deviations?: number[]
+  cnn_entropy?: number
+  cnn_normalized_entropy?: number
+  cnn_warning?: boolean
+  gcam_img_base64?: string
+  attention_img_base64?: string
+  cnn_error?: string
 }
 
 export type ToastType = 'danger' | 'warning' | 'info' | 'success' | 'whatsapp';
