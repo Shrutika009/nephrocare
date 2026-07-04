@@ -162,6 +162,30 @@ a {
     gap: 12px;
 }
 
+/* Settings icon button in header */
+.header-settings-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1.5px solid #E2E8F0;
+    background: #fff;
+    color: #64748B;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    flex-shrink: 0;
+}
+
+.header-settings-btn:hover {
+    background: #EFF6FF;
+    border-color: #2563EB;
+    color: #2563EB;
+    transform: rotate(60deg);
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.18);
+}
+
 .login-button,
 .signup-button {
     border-radius: 11px;

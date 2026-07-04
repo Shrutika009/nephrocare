@@ -1,4 +1,4 @@
-export type Page = 'home' | 'ckd-prediction' | 'food-tools' | 'login' | 'signup' | 'dashboard' | 'ultrasound' | 'doctor-summary' | 'alerts' | 'lab-report' | 'wearable' | 'chatbot'
+export type Page = 'home' | 'ckd-prediction' | 'food-tools' | 'login' | 'signup' | 'dashboard' | 'ultrasound' | 'doctor-summary' | 'alerts' | 'lab-report' | 'wearable' | 'chatbot' | 'settings'
 
 export type PredictionForm = {
   age: number | ''

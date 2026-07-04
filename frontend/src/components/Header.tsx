@@ -18,18 +18,24 @@ type HeaderProps = {
 export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpen, showPage, scrollTo, closeMenus, user, onLogout }: HeaderProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const headerRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
+      // Close user dropdown when clicking outside it
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setUserMenuOpen(false)
+      }
+      // Close features mega-menu when clicking outside the entire header
+      if (headerRef.current && !headerRef.current.contains(event.target as Node)) {
+        setFeaturesOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  return <header className="header">
+  return <header className="header" ref={headerRef}>
     <a className="brand" href="#top" aria-label="NephroCare home" onClick={event => { event.preventDefault(); showPage('home') }}>
       <img className="brand-photo-logo" src="/logo.png" alt="" />
       <span className="brand-text">NephroCare<small>CKD PREDICTION SYSTEM</small></span>
@@ -42,6 +48,14 @@ export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpe
     </nav>
     <div className="header-actions">
       <button className="signup-button dashboard-tab" onClick={() => showPage('chatbot')} style={{marginRight: '12px', background: '#236d9f', borderColor: '#236d9f'}}>AI Assistant</button>
+      <button
+        className="header-settings-btn"
+        onClick={() => showPage('settings')}
+        title="Settings"
+        aria-label="Open Settings"
+      >
+        <Icon name="settings" size={18} />
+      </button>
       {user ? (
         <div className="user-profile-container" ref={dropdownRef} style={{ position: 'relative' }}>
           <div className="user-profile" onClick={() => setUserMenuOpen(!userMenuOpen)} style={{ cursor: 'pointer', userSelect: 'none' }}>
@@ -55,6 +69,17 @@ export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpe
           </div>
           {userMenuOpen && (
             <div className="user-dropdown">
+              <button 
+                type="button" 
+                className="dropdown-logout-btn"
+                style={{ color: '#236d9f', borderBottom: '1px solid #F1F5F9', marginBottom: '4px' }}
+                onClick={() => {
+                  showPage('settings');
+                  setUserMenuOpen(false);
+                }}
+              >
+                <Icon name="settings" size={16} /> Settings
+              </button>
               <button 
                 type="button" 
                 className="dropdown-logout-btn" 
