@@ -9,6 +9,7 @@ export const features = [
   { icon: 'camera' as IconName, title: 'Ultrasound Analysis' },
   { icon: 'alert' as IconName, title: 'Smart Alerts' },
   { icon: 'chart' as IconName, title: 'Monitoring Dashboard' },
+  { icon: 'mic' as IconName, title: 'Voice Prescription Assist' },
 ]
 
 export const initialPredictionForm: PredictionForm = {

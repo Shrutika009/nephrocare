@@ -16,6 +16,7 @@ import { WearablePage } from './pages/WearablePage'
 import { LabReportPage } from './pages/LabReportPage'
 import { ChatbotPage } from './pages/ChatbotPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { VoiceAssistPage } from './pages/VoiceAssistPage'
 import type { FoodAnalysis, FoodPlanResponse, FoodScanResponse, MealPlanResponse, Page, PredictionForm, PredictionResult, UltrasoundScanResult, Toast, ToastType } from './types'
 import { reportData } from './utils/format'
 import { useEffect } from 'react'
@@ -390,6 +391,7 @@ function App() {
     {page === 'wearable' && <WearablePage />}
     {page === 'chatbot' && <ChatbotPage showPage={showPage} user={user} form={form} />}
     {page === 'settings' && <SettingsPage showPage={showPage} user={user} />}
+    {page === 'voice-assist' && <VoiceAssistPage showPage={showPage} user={user} />}
     {page === 'lab-report' && <LabReportPage 
       handleReportUpload={handleReportUpload}
       uploadStatus={uploadStatus}

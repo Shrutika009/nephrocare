@@ -1486,6 +1486,96 @@ class Handler(BaseHTTPRequestHandler):
             })
             return
 
+        if self.path == "/api/voice/analyze":
+            length = int(self.headers.get("Content-Length", "0"))
+            content_type = self.headers.get("Content-Type", "")
+            if length <= 0 or "multipart/form-data" not in content_type:
+                self.respond(400, {"error": "Expected multipart/form-data request"})
+                return
+
+            body = self.rfile.read(length)
+            from email.parser import BytesParser
+            from email.policy import default
+            message = BytesParser(policy=default).parsebytes(
+                f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("utf-8") + body
+            )
+
+            fields = {}
+            audio_data = None
+            audio_filename = "prescription.wav"
+
+            for part in message.iter_parts():
+                if part.get_content_disposition() != "form-data":
+                    continue
+                name = part.get_param("name", header="content-disposition")
+                if name == "audio_file":
+                    audio_data = part.get_payload(decode=True) or b""
+                    audio_filename = part.get_filename() or "prescription.wav"
+                else:
+                    try:
+                        fields[name] = part.get_payload(decode=True).decode("utf-8").strip()
+                    except Exception:
+                        pass
+
+            if not audio_data:
+                self.respond(400, {"error": "Missing audio_file"})
+                return
+
+            patient_id = fields.get("patient_id", "anonymous")
+            try:
+                ckd_stage = int(fields.get("ckd_stage", 3))
+            except ValueError:
+                ckd_stage = 3
+
+            labs = {}
+            for lab_key in ["potassium", "creatinine", "egfr", "phosphorus"]:
+                if val := fields.get(lab_key):
+                    try:
+                        labs[lab_key] = float(val)
+                    except ValueError:
+                        pass
+
+            allergies = []
+            if raw_allergies := fields.get("allergies"):
+                allergies = [a.strip() for a in raw_allergies.split(",") if a.strip()]
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                audio_path = Path(tmpdir) / (Path(audio_filename).name or "prescription.wav")
+                audio_path.write_bytes(audio_data)
+
+                try:
+                    import sys
+                    sys.path.append(str(ROOT / "voice_analysis"))
+                    from voice_analyzer import VoicePrescriptionAnalyzer
+
+                    analyzer = VoicePrescriptionAnalyzer()
+                    result = analyzer.analyze(
+                        audio_path=audio_path,
+                        patient_id=patient_id,
+                        ckd_stage=ckd_stage,
+                        current_labs=labs,
+                        allergies=allergies
+                    )
+
+                    self.respond(200, {
+                        "success": True,
+                        "analysis_id": result.analysis_id,
+                        "transcript": result.transcript,
+                        "risk_score": result.risk_score,
+                        "risk_category": result.risk_category,
+                        "critical_alerts": result.critical_alerts,
+                        "medications": result.medications,
+                        "nutrients": result.nutrients,
+                        "interactions": result.interactions,
+                        "recommendations": result.recommendations,
+                        "patient_summary": result.patient_summary,
+                        "doctor_summary": result.doctor_summary,
+                        "timestamp": result.timestamp.isoformat()
+                    })
+                except Exception as exc:
+                    self.respond(500, {"error": f"Voice prescription analysis failed: {str(exc)}"})
+            return
+
         if self.path == "/api/scan-ultrasound":
             uploaded = read_multipart_upload(self, "image")
             if uploaded is None or not uploaded["data"]:

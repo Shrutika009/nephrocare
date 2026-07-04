@@ -71,37 +71,31 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
     return { role: 'assistant' as const, content: msg, assessment: msg, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
   }
 
-  const [messages, setMessages] = useState<Message[]>([makeWelcome('en')])
+  // Read persisted language on first render
+  const savedLang = localStorage.getItem('nephrocare_language') || 'en'
+  const [messages, setMessages] = useState<Message[]>([makeWelcome(savedLang)])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [selectedLang, setSelectedLang] = useState(savedLang)
 
-  // Read persisted language on first render
-  const [selectedLang, setSelectedLang] = useState(() => {
-    return localStorage.getItem('nephrocare_language') || 'en'
-  })
-
-  // Keep messages in sync with the initial language
-  useEffect(() => {
-    const saved = localStorage.getItem('nephrocare_language') || 'en'
-    setSelectedLang(saved)
-    setMessages([makeWelcome(saved)])
-  }, [])
-
-  // Listen for live language changes from Settings page
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const lang = (e as CustomEvent).detail?.language
-      if (lang) handleLangChange(lang)
-    }
-    window.addEventListener('nephrocare_language_change', handler)
-    return () => window.removeEventListener('nephrocare_language_change', handler)
-  }, [])
-  
   // Reset chat with translated welcome when language changes
   const handleLangChange = (lang: string) => {
     setSelectedLang(lang)
     setMessages([makeWelcome(lang)])
   }
+
+  // Listen for live language changes from Settings page
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const lang = (e as CustomEvent).detail?.language
+      if (lang) {
+        setSelectedLang(lang)
+        setMessages([makeWelcome(lang)])
+      }
+    }
+    window.addEventListener('nephrocare_language_change', handler)
+    return () => window.removeEventListener('nephrocare_language_change', handler)
+  }, [])
   
   // Custom context editable state
   const [customAge, setCustomAge] = useState<string>(form.age ? form.age.toString() : '48')

@@ -126,6 +126,8 @@ export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpe
                 feature.title === 'WhatsApp Assistant'
               ) {
                 showPage('dashboard');
+              } else if (feature.title === 'Voice Prescription Assist') {
+                showPage('voice-assist');
               } else {
                 closeMenus();
               }
@@ -144,6 +146,7 @@ export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpe
       <button type="button" onClick={() => showPage('ultrasound')}>Ultrasound Scan</button>
       <button type="button" onClick={() => showPage('wearable')}>Wearable Twin</button>
       <button type="button" onClick={() => showPage('dashboard')}>Dashboard</button>
+      <button type="button" onClick={() => showPage('voice-assist')}>Voice Assist</button>
       <button type="button" onClick={() => scrollTo('about')}>About</button>
       <button type="button" onClick={() => scrollTo('resources')}>Resources</button>
     </div>}
