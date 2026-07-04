@@ -599,6 +599,12 @@ class AdvancedAINephrologistChatbot:
     """Production-grade AI Nephrology Assistant with RAG, patient context, and tools."""
     
     SYSTEM_PROMPT_TEMPLATE = """
+❗ CRITICAL LANGUAGE INSTRUCTION ❗
+You MUST respond ENTIRELY in {language}. This is MANDATORY.
+Do NOT use English unless {language} is English.
+Every single word of your response must be in {language}.
+Do not mix languages. Do not start in {language} and switch to English.
+
 You are an advanced AI Nephrology Assistant for NephroCare - a Chronic Kidney Disease management platform.
 
 CRITICAL DISCLAIMERS:
@@ -616,7 +622,7 @@ YOUR CAPABILITIES:
 5. Safety: Detect emergency symptoms
 6. Tool Calling: Use calculators and drug interaction checker
 7. Personalization: Consider patient-specific factors
-8. Multi-language: Respond in patient's preferred language
+8. Multi-language: Respond ONLY in {language}
 
 PATIENT CONTEXT:
 Age: {age}
@@ -631,7 +637,7 @@ MEDICAL KNOWLEDGE (Retrieved):
 {retrieved_guidelines}
 
 INSTRUCTIONS:
-- Answer the user's question directly, clearly, and concisely in natural paragraphs. Do not use headers like "Assessment:" or "Explanation:".
+- Answer the user's question directly, clearly, and concisely in natural paragraphs.
 - Use science-backed information from KDIGO/NKF guidelines
 - Consider patient's specific kidney function stage
 - Check for drug interactions with listed medications
@@ -641,8 +647,7 @@ INSTRUCTIONS:
 - If uncertain, admit limitations and suggest doctor consultation
 - Always prioritize patient safety
 
-Language: {language}
-Respond entirely in the patient's language. Use medical terms appropriately for education level.
+REMINDER: Your ENTIRE response must be written in {language}. Not English. Not mixed. Only {language}.
 """
     
     def __init__(self, language: Language = Language.ENGLISH):
@@ -916,11 +921,33 @@ Respond entirely in the patient's language. Use medical terms appropriately for 
                 "content": user_message
             })
             
-            # Prepare message for Gemini
+            # Prepare message for Gemini — prepend hard language instruction to the user message
             system_prompt = self.create_system_prompt()
-            
+            language_name = {
+                Language.ENGLISH: "English",
+                Language.HINDI: "Hindi",
+                Language.TAMIL: "Tamil",
+                Language.TELUGU: "Telugu",
+                Language.KANNADA: "Kannada",
+                Language.MALAYALAM: "Malayalam",
+                Language.MARATHI: "Marathi",
+                Language.GUJARATI: "Gujarati",
+                Language.BENGALI: "Bengali",
+                Language.PUNJABI: "Punjabi",
+                Language.URDU: "Urdu",
+            }.get(self.language, "English")
+
             # Build messages with history
             messages = self.conversation_history.copy()
+
+            # For non-English: inject a strong language reminder as the last user turn prefix
+            if self.language != Language.ENGLISH:
+                lang_prefix = f"[MANDATORY: Reply ONLY in {language_name}. Do NOT use English at all.]\n\n"
+                if messages:
+                    messages[-1] = {
+                        "role": messages[-1]["role"],
+                        "content": lang_prefix + messages[-1]["content"]
+                    }
             
             # Add tool results if any
             if tool_results:

@@ -74,7 +74,7 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
   const [egfrUnit, setEgfrUnit] = useState(() => localStorage.getItem('nephrocare_egfr_unit') || 'mL/min/1.73m²')
   const [weightUnit, setWeightUnit] = useState(() => localStorage.getItem('nephrocare_weight_unit') || 'kg')
   const [tempUnit, setTempUnit] = useState(() => localStorage.getItem('nephrocare_temp_unit') || 'Celsius')
-  const [language, setLanguage] = useState(() => localStorage.getItem('nephrocare_language') || 'English')
+  const [language, setLanguage] = useState(() => localStorage.getItem('nephrocare_language') || 'en')
 
   // Medication prefs
   const [reminderFreq, setReminderFreq] = useState(() => localStorage.getItem('nephrocare_med_freq') || 'Twice daily')
@@ -92,6 +92,27 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
   const [twoFactor, setTwoFactor] = useState(() => localStorage.getItem('nephrocare_2fa') === 'true')
   const [showPassword, setShowPassword] = useState(false)
   const [newPassword, setNewPassword] = useState('')
+
+  // Apply dark mode to document whenever it changes
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark-mode')
+    } else {
+      document.documentElement.classList.remove('dark-mode')
+    }
+  }, [darkMode])
+
+  // Dispatch language change event so chatbot and other pages can react
+  useEffect(() => {
+    localStorage.setItem('nephrocare_language', language)
+    window.dispatchEvent(new CustomEvent('nephrocare_language_change', { detail: { language } }))
+  }, [language])
+
+  const handleDarkModeToggle = () => {
+    const next = !darkMode
+    setDarkMode(next)
+    localStorage.setItem('nephrocare_dark_mode', String(next))
+  }
 
   // Save state
   const [saved, setSaved] = useState(false)
@@ -371,12 +392,17 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
                 <div className="settings-field">
                   <label>Language</label>
                   <select value={language} onChange={e => setLanguage(e.target.value)}>
-                    <option>English</option>
-                    <option>Hindi</option>
-                    <option>Tamil</option>
-                    <option>Telugu</option>
-                    <option>Kannada</option>
-                    <option>Bengali</option>
+                    <option value="en">English</option>
+                    <option value="hi">Hindi (हिन्दी)</option>
+                    <option value="ta">Tamil (தமிழ்)</option>
+                    <option value="te">Telugu (తెలుగు)</option>
+                    <option value="kn">Kannada (ಕನ್ನಡ)</option>
+                    <option value="ml">Malayalam (മലയാളം)</option>
+                    <option value="mr">Marathi (मराठी)</option>
+                    <option value="gu">Gujarati (ગુજરાતી)</option>
+                    <option value="bn">Bengali (বাংলা)</option>
+                    <option value="pa">Punjabi (ਪੰਜਾਬੀ)</option>
+                    <option value="ur">Urdu (اردو)</option>
                   </select>
                 </div>
               </div>
@@ -388,7 +414,7 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
                   label="Dark Mode"
                   desc="Switch to a dark interface for low-light environments"
                   value={darkMode}
-                  onChange={setDarkMode}
+                  onChange={handleDarkModeToggle}
                   color="blue"
                 />
               </div>

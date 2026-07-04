@@ -297,3 +297,132 @@ a {
     display: none;
 }
 
+/* ─── Dark Mode ─── */
+html.dark-mode {
+    color-scheme: dark;
+    background: #0f172a;
+    color: #e2e8f0;
+}
+
+html.dark-mode body {
+    background: #0f172a;
+    color: #e2e8f0;
+}
+
+html.dark-mode .header {
+    background: #1e293b;
+    border-bottom: 1px solid #334155;
+}
+
+html.dark-mode .nav-link,
+html.dark-mode .brand-text {
+    color: #cbd5e1;
+}
+
+html.dark-mode .mega-menu {
+    background: #1e293b;
+    border-color: #334155;
+}
+
+html.dark-mode .mega-links button {
+    color: #cbd5e1;
+}
+
+html.dark-mode .mega-links button:hover {
+    background: #334155;
+    color: #93c5fd;
+}
+
+html.dark-mode .settings-page {
+    background: #0f172a;
+}
+
+html.dark-mode .settings-content,
+html.dark-mode .settings-sidebar {
+    background: #1e293b;
+    border-color: #334155;
+}
+
+html.dark-mode .settings-nav-item {
+    color: #94a3b8;
+}
+
+html.dark-mode .settings-nav-item:hover {
+    background: #1d3a5c;
+    color: #93c5fd;
+}
+
+html.dark-mode .settings-nav-item.active {
+    background: #1d4ed8;
+    color: #fff;
+}
+
+html.dark-mode .settings-field input,
+html.dark-mode .settings-field select {
+    background: #0f172a;
+    border-color: #334155;
+    color: #e2e8f0;
+}
+
+html.dark-mode .settings-toggle-row {
+    background: #0f172a;
+    border-color: #334155;
+}
+
+html.dark-mode .settings-toggle-label {
+    color: #e2e8f0;
+}
+
+html.dark-mode .settings-section-header > div h2 {
+    color: #e2e8f0;
+}
+
+html.dark-mode .settings-title {
+    color: #f1f5f9;
+}
+
+html.dark-mode .settings-stat-card {
+    background: #0f172a;
+    border-color: #334155;
+}
+
+html.dark-mode .settings-data-card {
+    background: #0f172a;
+    border-color: #334155;
+}
+
+html.dark-mode .settings-password-box {
+    background: #0f172a;
+    border-color: #334155;
+}
+
+html.dark-mode .settings-storage-track {
+    background: #334155;
+}
+
+html.dark-mode .settings-avatar-row {
+    background: #1d3a5c;
+    border-color: #1d4ed8;
+}
+
+html.dark-mode .wearable-page-container,
+html.dark-mode .wearable-card,
+html.dark-mode .dashboard-page,
+html.dark-mode .ultrasound-page {
+    background: #0f172a;
+    color: #e2e8f0;
+}
+
+html.dark-mode input,
+html.dark-mode select,
+html.dark-mode textarea {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+    color: #e2e8f0 !important;
+}
+
+/* Smooth transition */
+html, body, .settings-page, .settings-content, .settings-sidebar,
+.header, .dashboard-page, .wearable-card {
+    transition: background 0.3s ease, color 0.2s ease, border-color 0.2s ease;
+}
