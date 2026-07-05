@@ -60,6 +60,8 @@ interface SymptomLog {
   fatigue: 'none' | 'mild' | 'severe';
   swelling: 'none' | 'mild' | 'severe';
   nausea: 'none' | 'mild' | 'severe';
+  appetite: 'none' | 'mild' | 'severe';
+  urination: 'none' | 'mild' | 'severe';
   itchySkin: 'none' | 'mild' | 'severe';
   shortnessOfBreath: 'none' | 'mild' | 'severe';
   metallicTaste: 'none' | 'mild' | 'severe';
@@ -174,8 +176,28 @@ export function DashboardPage({
     }
   }
 
-  // Symptom handling
-  const latestSymptoms = symptomLogs[0] || { fatigue: 'none', swelling: 'none', nausea: 'none', itchySkin: 'none', shortnessOfBreath: 'none', metallicTaste: 'none', urinationChanges: 'none' };
+  // Default symptom set representing all tracked symptoms
+  const defaultSymptoms = {
+    fatigue: 'none',
+    swelling: 'none',
+    nausea: 'none',
+    appetite: 'none',
+    urination: 'none',
+    itchySkin: 'none',
+    shortnessOfBreath: 'none',
+    metallicTaste: 'none',
+    urinationChanges: 'none'
+  };
+
+  // Merge latest logged entry with default set
+  const latestSymptoms = useMemo(() => {
+    const raw = symptomLogs[0] || {};
+    return {
+      ...defaultSymptoms,
+      ...raw
+    };
+  }, [symptomLogs]);
+
   const handleSymptomChange = (symptom: keyof Omit<SymptomLog, 'timestamp'>, severity: 'none' | 'mild' | 'severe') => {
     const newLog: SymptomLog = {
       ...latestSymptoms,
@@ -186,12 +208,25 @@ export function DashboardPage({
     if (severity === 'severe') {
       sendWhatsAppNotification(`Severe ${symptom.toUpperCase()}`, `You logged severe ${symptom}. Please contact your clinical coordinator immediately.`);
     }
+    
+    const token = localStorage.getItem('auth_token')
+    if (user && token) {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+      fetch(`${apiUrl}/api/patient/symptom-logs`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(newLog)
+      }).catch(err => console.error('Failed to save symptom log to DB:', err))
+    }
   }
 
   // Composite Symptom Severity Score (0-100)
   const symptomScore = useMemo(() => {
     const weights = { none: 0, mild: 35, severe: 100 }
-    const keys = ['fatigue', 'swelling', 'nausea', 'itchySkin', 'shortnessOfBreath', 'metallicTaste', 'urinationChanges'] as const
+    const keys = ['fatigue', 'swelling', 'nausea', 'appetite', 'urination', 'itchySkin', 'shortnessOfBreath', 'metallicTaste', 'urinationChanges'] as const
     const sum = keys.reduce((acc, key) => acc + weights[latestSymptoms[key] || 'none'], 0)
     return Math.round(sum / keys.length)
   }, [latestSymptoms])
@@ -248,7 +283,15 @@ export function DashboardPage({
     const usObs = latestUltrasound ? latestUltrasound.observations.join(', ') : 'None'
 
     const sympString = Object.entries(latestSymptoms)
-      .map(([k, v]) => `${k.toUpperCase()}: ${v}`)
+      .filter(([k]) => k !== 'timestamp')
+      .map(([k, v]) => {
+        let label = k.toUpperCase()
+        if (k === 'itchySkin') label = 'ITCHY SKIN'
+        if (k === 'shortnessOfBreath') label = 'SHORTNESS OF BREATH'
+        if (k === 'metallicTaste') label = 'METALLIC TASTE'
+        if (k === 'urinationChanges') label = 'URINATION CHANGES'
+        return `${label}: ${v}`
+      })
       .join(', ')
 
     const reportHtml = `
@@ -1260,12 +1303,13 @@ export function DashboardPage({
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
-              {['fatigue', 'swelling', 'nausea', 'itchySkin', 'shortnessOfBreath', 'metallicTaste', 'urinationChanges'].map((symp) => {
+              {['fatigue', 'swelling', 'nausea', 'appetite', 'urination', 'itchySkin', 'shortnessOfBreath', 'metallicTaste', 'urinationChanges'].map((symp) => {
                 const sKey = symp as keyof Omit<SymptomLog, 'timestamp'>
                 const currentVal = latestSymptoms[sKey] || 'none'
                 
                 // Friendly display name
                 let displayName = symp
+                if (symp === 'appetite') displayName = 'loss of appetite'
                 if (symp === 'itchySkin') displayName = 'itchy skin'
                 if (symp === 'shortnessOfBreath') displayName = 'shortness of breath'
                 if (symp === 'metallicTaste') displayName = 'metallic taste'

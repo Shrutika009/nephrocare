@@ -119,6 +119,20 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
 
   const saveAll = () => {
     localStorage.setItem('nephrocare_profile', JSON.stringify(profile))
+    
+    const token = localStorage.getItem('auth_token')
+    if (user && token) {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+      fetch(`${apiUrl}/api/patient/profile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(profile)
+      }).catch(err => console.error('Failed to save profile to DB:', err))
+    }
+
     localStorage.setItem('nephrocare_med_reminder', String(medReminder))
     localStorage.setItem('nephrocare_food_reminder', String(foodReminder))
     localStorage.setItem('nephrocare_lab_reminder', String(labReminder))

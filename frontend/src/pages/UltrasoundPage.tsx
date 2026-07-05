@@ -27,6 +27,7 @@ import {
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts'
 import { API_BASE_URL } from '../constants'
 import type { Page, UltrasoundScanResult } from '../types'
+import { useAuth } from '../contexts/AuthContext'
 
 type UltrasoundPageProps = {
   showPage: (page: Page) => void
@@ -47,6 +48,7 @@ export function UltrasoundPage({
   imagePreview, 
   setImagePreview 
 }: UltrasoundPageProps) {
+  const { user } = useAuth()
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [scanStep, setScanStep] = useState<'upload' | 'scanning' | 'results'>(result ? 'results' : 'upload')
   const [activeTab, setActiveTab] = useState<'original' | 'gradcam' | 'attention'>('original')
@@ -199,6 +201,18 @@ export function UltrasoundPage({
           }
           const existing = JSON.parse(localStorage.getItem('nephrocare_ultrasound_scans') || '[]')
           localStorage.setItem('nephrocare_ultrasound_scans', JSON.stringify([historyItem, ...existing].slice(0, 5)))
+          
+          const token = localStorage.getItem('auth_token')
+          if (user && token) {
+            fetch(`${API_BASE_URL}/api/patient/ultrasound-scans`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify(historyItem)
+            }).catch(err => console.error('Failed to save ultrasound scan to DB:', err))
+          }
         } catch (e) {
           console.warn("Storage quota exceeded", e)
         }
