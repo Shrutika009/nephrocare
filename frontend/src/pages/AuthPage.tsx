@@ -2,6 +2,7 @@ import { useState, useEffect, type FormEvent } from 'react'
 import { Icon } from '../components/Icon'
 import type { Page } from '../types'
 import { useAuth } from '../contexts/AuthContext'
+import { Eye, EyeOff } from 'lucide-react'
 
 type AuthPageProps = {
   initialMode: 'login' | 'signup'
@@ -17,6 +18,7 @@ export function AuthPage({ initialMode, showPage, onLoginSuccess }: AuthPageProp
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [googleSdkReady, setGoogleSdkReady] = useState(false)
   
   // Check if VITE_GOOGLE_CLIENT_ID environment variable is set
@@ -85,7 +87,13 @@ export function AuthPage({ initialMode, showPage, onLoginSuccess }: AuthPageProp
           try {
             google.accounts.id.renderButton(
               btnContainer,
-              { theme: 'outline', size: 'large', width: 380, shape: 'rectangular' }
+              { 
+                theme: 'outline', 
+                size: 'large', 
+                width: 380, 
+                shape: 'rectangular',
+                text: mode === 'signup' ? 'signup_with' : 'signin_with'
+              }
             )
           } catch (err) {
             console.error('Google Sign-In button rendering failed:', err)
@@ -186,14 +194,36 @@ export function AuthPage({ initialMode, showPage, onLoginSuccess }: AuthPageProp
 
             <div className="form-group">
               <label htmlFor="password-input">Password</label>
-              <input 
-                id="password-input"
-                type="password" 
-                placeholder="••••••••" 
-                value={password} 
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
-              />
+              <div className="password-input-wrapper" style={{ position: 'relative' }}>
+                <input 
+                  id="password-input"
+                  type={showPassword ? "text" : "password"} 
+                  placeholder="••••••••" 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={loading}
+                  style={{ width: '100%', paddingRight: '40px' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#666',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: 0
+                  }}
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
 
             {mode === 'login' && (
