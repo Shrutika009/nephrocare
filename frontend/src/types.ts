@@ -119,3 +119,17 @@ export type WearableResponse = {
   scenario: string;
 }
 
+export type StageProgressionResult = {
+  current_stage: string
+  stage_probabilities: Record<string, number>
+  egfr: number | null
+  annual_decline_rate: number
+  progression_timeline: { stage: string; months: number; label: string }[]
+  risk_factors: string[]
+  model_info: {
+    xgb_accuracy: number | null
+    dnn_mae: number | null
+    dnn_architecture: string
+    dataset: string
+  }
+}

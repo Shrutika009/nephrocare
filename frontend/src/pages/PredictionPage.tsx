@@ -1,7 +1,7 @@
 import { useState, useEffect, type ChangeEvent, type FormEvent } from 'react'
 import { Icon } from '../components/Icon'
 import { labInputLabels, stageOrder } from '../constants'
-import type { Page, PredictionForm, PredictionResult } from '../types'
+import type { Page, PredictionForm, PredictionResult, StageProgressionResult } from '../types'
 import { formatPercent, formatValue, modelSourceSummary, reportData, stageGfrBand, stageNumber } from '../utils/format'
 import { downloadPredictionPdf } from '../utils/predictionPdf'
 
@@ -68,6 +68,32 @@ function PredictionResultView({ result, activeReport, setPredictionStep, showPag
       console.error(e)
     }
   }, [])
+
+  const [stageResult, setStageResult] = useState<StageProgressionResult | null>(null)
+  const [stageLoading, setStageLoading] = useState(false)
+
+  useEffect(() => {
+    const fetchStage = async () => {
+      setStageLoading(true)
+      try {
+        const apiUrl = (import.meta as any).env?.VITE_API_URL || 'http://127.0.0.1:8000'
+        const response = await fetch(`${apiUrl}/api/predict-stage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(result.input),
+        })
+        if (response.ok) {
+          const data = await response.json()
+          setStageResult(data)
+        }
+      } catch (err) {
+        console.error('Stage prediction failed:', err)
+      } finally {
+        setStageLoading(false)
+      }
+    }
+    fetchStage()
+  }, [result])
 
   const patientName = userName
   const patientAge = formatValue(result.input.age)
@@ -198,6 +224,100 @@ function PredictionResultView({ result, activeReport, setPredictionStep, showPag
           Senior Consultant Pathologist (Reg No: MCI-92842)
         </div>
       </div>
+
+      {/* CKD Stage Progression Forecast */}
+      {stageLoading && (
+        <div style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
+          <p style={{ fontSize: '14px' }}>Analyzing CKD progression with AI models...</p>
+        </div>
+      )}
+      {stageResult && (
+        <div style={{ marginTop: '32px', borderTop: '2px solid #083b66', paddingTop: '28px' }}>
+          <h2 style={{ color: '#083b66', fontSize: '16px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'left', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Icon name="activity" size={18} /> CKD STAGE PROGRESSION FORECAST
+          </h2>
+
+          {/* Current Stage + Decline Rate KPIs */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+            <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '10px', padding: '18px', textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', fontWeight: '600', color: '#92400e', textTransform: 'uppercase', marginBottom: '6px' }}>Current Stage (XGBoost)</div>
+              <div style={{ fontSize: '36px', fontWeight: '900', color: '#b45309' }}>{stageResult.current_stage}</div>
+              <div style={{ fontSize: '11px', color: '#a16207', marginTop: '4px' }}>Confidence: {((stageResult.stage_probabilities[stageResult.current_stage] || 0) * 100).toFixed(1)}%</div>
+            </div>
+            <div style={{ background: '#fce4ec', border: '1px solid #f8bbd0', borderRadius: '10px', padding: '18px', textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', fontWeight: '600', color: '#880e4f', textTransform: 'uppercase', marginBottom: '6px' }}>eGFR Decline Rate (DNN)</div>
+              <div style={{ fontSize: '36px', fontWeight: '900', color: '#ad1457' }}>{stageResult.annual_decline_rate}</div>
+              <div style={{ fontSize: '11px', color: '#c62828', marginTop: '4px' }}>mL/min/1.73m²/year</div>
+            </div>
+            <div style={{ background: '#e8f5e9', border: '1px solid #c8e6c9', borderRadius: '10px', padding: '18px', textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', fontWeight: '600', color: '#2e7d32', textTransform: 'uppercase', marginBottom: '6px' }}>Current eGFR</div>
+              <div style={{ fontSize: '36px', fontWeight: '900', color: '#1b5e20' }}>{stageResult.egfr ?? 'N/A'}</div>
+              <div style={{ fontSize: '11px', color: '#388e3c', marginTop: '4px' }}>mL/min/1.73m²</div>
+            </div>
+          </div>
+
+          {/* Stage Probability Distribution */}
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '20px', marginBottom: '24px' }}>
+            <h3 style={{ margin: '0 0 14px', fontSize: '13px', fontWeight: '700', color: '#0f172a', textAlign: 'left', textTransform: 'uppercase' }}>Stage Probability Distribution</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {(['G1', 'G2', 'G3a', 'G3b', 'G4', 'G5'] as const).map(stage => {
+                const prob = stageResult.stage_probabilities[stage] || 0
+                const isActive = stage === stageResult.current_stage
+                const barColor = isActive ? '#083b66' : '#94a3b8'
+                return (
+                  <div key={stage} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ width: '36px', fontSize: '12px', fontWeight: isActive ? '800' : '500', color: isActive ? '#083b66' : '#64748b', textAlign: 'right' }}>{stage}</span>
+                    <div style={{ flex: 1, height: '22px', background: '#e2e8f0', borderRadius: '6px', overflow: 'hidden', position: 'relative' as const }}>
+                      <div style={{ height: '100%', width: `${Math.max(prob * 100, 1)}%`, background: barColor, borderRadius: '6px', transition: 'width 0.8s ease' }} />
+                    </div>
+                    <span style={{ width: '50px', fontSize: '12px', fontWeight: isActive ? '800' : '500', color: isActive ? '#083b66' : '#64748b' }}>{(prob * 100).toFixed(1)}%</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Progression Timeline */}
+          {stageResult.progression_timeline.length > 0 && (
+            <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '10px', padding: '20px', marginBottom: '24px' }}>
+              <h3 style={{ margin: '0 0 16px', fontSize: '13px', fontWeight: '700', color: '#9a3412', textAlign: 'left', textTransform: 'uppercase' }}>Estimated Progression Timeline</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0', justifyContent: 'center', flexWrap: 'wrap' as const }}>
+                {/* Current stage marker */}
+                <div style={{ display: 'flex', flexDirection: 'column' as const, alignItems: 'center', minWidth: '90px' }}>
+                  <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#083b66', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '14px' }}>{stageResult.current_stage}</div>
+                  <div style={{ fontSize: '10px', color: '#083b66', fontWeight: '700', marginTop: '6px' }}>NOW</div>
+                </div>
+                {stageResult.progression_timeline.map((item, idx) => {
+                  const stageColors: Record<string, string> = { G2: '#ca8a04', G3a: '#ea580c', G3b: '#dc2626', G4: '#be123c', G5: '#881337' }
+                  const color = stageColors[item.stage] || '#64748b'
+                  return (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center' }}>
+                      <div style={{ width: '60px', height: '3px', background: `linear-gradient(90deg, #cbd5e1, ${color})`, margin: '0 2px' }} />
+                      <div style={{ display: 'flex', flexDirection: 'column' as const, alignItems: 'center', minWidth: '90px' }}>
+                        <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '14px', border: '3px solid #fff', boxShadow: `0 0 0 2px ${color}40` }}>{item.stage}</div>
+                        <div style={{ fontSize: '11px', color, fontWeight: '700', marginTop: '6px', textAlign: 'center' }}>{item.label}</div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <p style={{ margin: '16px 0 0', fontSize: '10px', color: '#78350f', textAlign: 'center', fontStyle: 'italic' }}>
+                Based on DNN-predicted annual eGFR decline of {stageResult.annual_decline_rate} mL/min/1.73m²/year
+              </p>
+            </div>
+          )}
+
+          {/* Risk Factors */}
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', padding: '16px' }}>
+            <h3 style={{ margin: '0 0 10px', fontSize: '13px', fontWeight: '700', color: '#991b1b', textAlign: 'left', textTransform: 'uppercase' }}>Risk Factors Driving Progression</h3>
+            <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12px', color: '#7f1d1d', display: 'flex', flexDirection: 'column' as const, gap: '5px', lineHeight: 1.4 }}>
+              {stageResult.risk_factors.map((factor, idx) => (
+                <li key={idx}>{factor}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       <div style={{ marginTop: '24px', fontSize: '10px', color: '#94a3b8', textAlign: 'center', fontStyle: 'italic' }}>
         Disclaimer: This report is an AI-powered aggregation of clinical screening models. It is intended to support patient health literacy and should be clinically verified by a registered medical practitioner.

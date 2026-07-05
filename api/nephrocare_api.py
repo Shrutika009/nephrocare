@@ -1041,11 +1041,155 @@ def predict(lab: dict[str, Any]) -> dict[str, Any]:
         },
         "kidney_function": {
             "egfr_2021": round(egfr, 1) if egfr is not None else None,
-            "egfr_category": stage_from_egfr(egfr),
+            "egfr_category": predict_ckd_stage(lab)["current_stage"],
         },
         "lab_markers": abnormal,
         "warnings": warnings,
         "recommendations": recommendations,
+    }
+
+
+def predict_ckd_stage(payload: dict) -> dict:
+    """Predict current CKD stage (XGBoost) and future progression (DNN)."""
+    import torch
+    import torch.nn as nn
+    import joblib
+
+    MODELS_DIR = ROOT / "models"
+    STAGE_ORDER = ["G1", "G2", "G3a", "G3b", "G4", "G5"]
+    STAGE_BOUNDARIES = {"G1": 90, "G2": 60, "G3a": 45, "G3b": 30, "G4": 15, "G5": 0}
+
+    # --- Map incoming payload fields to model feature names ---
+    age = float(payload.get("age", 48))
+    sex_code = 2.0 if payload.get("sex", "female") == "female" else 1.0
+    serum_creatinine = float(payload.get("serum_creatinine", 1.2))
+    blood_urea = float(payload.get("blood_urea", 36))
+    blood_glucose_random = float(payload.get("blood_glucose_random", 121))
+    sodium = float(payload.get("sodium", 138))
+    potassium = float(payload.get("potassium", 4.4))
+    hemoglobin = float(payload.get("hemoglobin", 15.4))
+    urine_albumin = float(payload.get("urine_albumin", 30))
+    bp_raw = float(payload.get("blood_pressure", 80))
+    systolic_bp = float(payload.get("systolic_bp", 120 + (bp_raw - 80) * 1.5))
+    diastolic_bp = float(payload.get("diastolic_bp", bp_raw))
+    serum_albumin = float(payload.get("serum_albumin", 4.0))
+
+    # Feature vector (must match training order)
+    features = [age, sex_code, serum_creatinine, blood_urea, blood_glucose_random,
+                sodium, potassium, hemoglobin, urine_albumin, systolic_bp, diastolic_bp, serum_albumin]
+
+    import pandas as pd
+    import numpy as np
+
+    feature_names = joblib.load(str(MODELS_DIR / "ckd_stage_features.joblib"))
+    scaler = joblib.load(str(MODELS_DIR / "ckd_stage_scaler.joblib"))
+    xgb_model = joblib.load(str(MODELS_DIR / "ckd_stage_xgb.joblib"))
+    le = joblib.load(str(MODELS_DIR / "ckd_stage_label_encoder.joblib"))
+
+    # --- XGBoost: current stage prediction ---
+    frame = pd.DataFrame([features], columns=feature_names)
+    scaled = scaler.transform(frame)
+    stage_probs = xgb_model.predict_proba(scaled)[0]
+    predicted_idx = int(np.argmax(stage_probs))
+    predicted_stage = le.inverse_transform([predicted_idx])[0]
+
+    stage_probabilities = {}
+    for i, stage in enumerate(STAGE_ORDER):
+        idx = int(le.transform([stage])[0])
+        stage_probabilities[stage] = round(float(stage_probs[idx]), 4)
+
+    # Calculate eGFR
+    is_female = payload.get("sex", "female") == "female"
+    egfr = egfr_2021_creatinine(serum_creatinine, age, is_female)
+
+    # --- DNN: progression prediction ---
+    class CKDProgressionDNN(nn.Module):
+        def __init__(self, input_dim=12):
+            super().__init__()
+            self.network = nn.Sequential(
+                nn.Linear(input_dim, 128), nn.BatchNorm1d(128), nn.ReLU(), nn.Dropout(0.3),
+                nn.Linear(128, 64), nn.BatchNorm1d(64), nn.ReLU(), nn.Dropout(0.2),
+                nn.Linear(64, 32), nn.BatchNorm1d(32), nn.ReLU(), nn.Dropout(0.1),
+                nn.Linear(32, 1),
+            )
+        def forward(self, x):
+            return self.network(x)
+
+    dnn = CKDProgressionDNN(input_dim=12)
+    checkpoint = torch.load(str(MODELS_DIR / "ckd_progression_dnn.pt"), map_location="cpu", weights_only=True)
+    dnn.load_state_dict(checkpoint["model_state_dict"])
+    dnn.eval()
+
+    scaled_tensor = torch.tensor(scaled.astype(np.float32), dtype=torch.float32)
+    with torch.no_grad():
+        annual_decline = float(dnn(scaled_tensor).squeeze().item())
+    annual_decline = max(annual_decline, 0.5)  # Minimum 0.5 mL/min/year
+
+    # --- Compute progression timeline ---
+    monthly_decline = annual_decline / 12.0
+    progression_timeline = []
+    current_stage_idx = STAGE_ORDER.index(predicted_stage) if predicted_stage in STAGE_ORDER else 0
+
+    for future_stage in STAGE_ORDER[current_stage_idx + 1:]:
+        boundary = STAGE_BOUNDARIES[future_stage]
+        if egfr is not None and egfr > boundary:
+            months = int(round((egfr - boundary) / monthly_decline))
+            years = months // 12
+            rem_months = months % 12
+            if years > 0 and rem_months > 0:
+                label = f"~{years} year{'s' if years > 1 else ''} {rem_months} month{'s' if rem_months > 1 else ''}"
+            elif years > 0:
+                label = f"~{years} year{'s' if years > 1 else ''}"
+            else:
+                label = f"~{months} month{'s' if months > 1 else ''}"
+            progression_timeline.append({
+                "stage": future_stage,
+                "months": months,
+                "label": label,
+            })
+
+    # --- Identify risk factors ---
+    risk_factors = []
+    if blood_glucose_random > 126:
+        risk_factors.append("Elevated blood glucose (diabetes risk)")
+    if systolic_bp > 140:
+        risk_factors.append("Hypertension detected")
+    if urine_albumin > 30:
+        risk_factors.append("Elevated proteinuria (albuminuria)")
+    if hemoglobin < 12:
+        risk_factors.append("Low hemoglobin (anemia)")
+    if serum_creatinine > 1.3:
+        risk_factors.append("Elevated serum creatinine")
+    if serum_albumin < 3.5:
+        risk_factors.append("Low serum albumin")
+    if age > 60:
+        risk_factors.append("Age above 60 years")
+    if not risk_factors:
+        risk_factors.append("No major risk factors identified")
+
+    # --- Read model accuracy from training report ---
+    try:
+        with open(str(MODELS_DIR / "ckd_stage_training_report.json")) as f:
+            training_report = json.load(f)
+        xgb_accuracy = training_report["xgboost"]["accuracy"]
+        dnn_mae = training_report["dnn"]["test_mae"]
+    except Exception:
+        xgb_accuracy = None
+        dnn_mae = None
+
+    return {
+        "current_stage": predicted_stage,
+        "stage_probabilities": stage_probabilities,
+        "egfr": round(egfr, 1) if egfr else None,
+        "annual_decline_rate": round(annual_decline, 2),
+        "progression_timeline": progression_timeline,
+        "risk_factors": risk_factors,
+        "model_info": {
+            "xgb_accuracy": round(xgb_accuracy * 100, 1) if xgb_accuracy else None,
+            "dnn_mae": round(dnn_mae, 2) if dnn_mae else None,
+            "dnn_architecture": "12 \u2192 128 \u2192 64 \u2192 32 \u2192 1",
+            "dataset": "NHANES (7,366 patients)",
+        },
     }
 
 
@@ -1533,8 +1677,8 @@ class Handler(BaseHTTPRequestHandler):
             # Format clean phone number (digits only) for whatsapp link generator
             clean_phone = re.sub(r'[^\d]', '', phone)
             
-            # Read CallMeBot environment variable
-            callmebot_api_key = (os.environ.get("CALLMEBOT_API_KEY") or "").strip()
+            # Read CallMeBot API key from payload or environment variable
+            callmebot_api_key = str(payload.get("callmebot_api_key", "")).strip() or (os.environ.get("CALLMEBOT_API_KEY") or "").strip()
             
             # Generate the WhatsApp Web / API click-to-chat URL
             whatsapp_web_url = f"https://api.whatsapp.com/send?phone={clean_phone}&text={urllib.parse.quote(message)}"
@@ -1988,6 +2132,21 @@ class Handler(BaseHTTPRequestHandler):
                 })
             except Exception as exc:
                 self.respond(500, {"error": f"Chatbot execution failed: {str(exc)}"})
+            return
+
+        if self.path == "/api/predict-stage":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length).decode("utf-8") if length else "{}"
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                self.respond(400, {"error": "Invalid JSON"})
+                return
+            try:
+                result = predict_ckd_stage(payload)
+                self.respond(200, result)
+            except Exception as exc:
+                self.respond(500, {"error": f"Stage prediction failed: {type(exc).__name__}: {exc}"})
             return
 
         if self.path != "/api/predict":

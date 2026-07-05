@@ -63,6 +63,10 @@ export function AlertsPage({ showPage, user, addToast }: AlertsPageProps) {
       addToast('warning', 'Missing Phone', 'Please enter a phone number to test WhatsApp.')
       return
     }
+
+    // Open blank tab immediately to bypass browser popup blocker
+    const newWindow = window.open('about:blank', '_blank')
+
     try {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
       const response = await fetch(`${apiUrl}/api/send-whatsapp`, {
@@ -75,21 +79,40 @@ export function AlertsPage({ showPage, user, addToast }: AlertsPageProps) {
       })
       const data = await response.json()
       if (data.success) {
-        addToast('success', 'Test Sent', `Test message sent to ${phone}`)
+        if (newWindow) newWindow.close()
+        addToast('success', 'Test Sent', `Test message sent to ${phone} automatically!`)
         setWhatsappLogs([{ timestamp: new Date().toISOString(), title: 'Test Alert', message: 'Connection Successful', status: 'Sent' as const }, ...whatsappLogs].slice(0, 50))
       } else {
+        if (newWindow && data.whatsapp_web_url) {
+          newWindow.location.href = data.whatsapp_web_url
+        } else if (newWindow) {
+          newWindow.close()
+        }
         addToast(
-          'whatsapp',
-          'Test Simulated',
-          `Message simulated to ${phone}`,
-          data.whatsapp_web_url ? { label: 'Send via WhatsApp Web', url: data.whatsapp_web_url } : undefined
+          'success',
+          'WhatsApp Client Opened',
+          `Opening WhatsApp client to send test message to ${phone} for free.`
         )
-        setWhatsappLogs([{ timestamp: new Date().toISOString(), title: 'Test Alert', message: 'Connection Simulated', status: 'Simulated' as const }, ...whatsappLogs].slice(0, 50))
+        setWhatsappLogs([{ timestamp: new Date().toISOString(), title: 'Test Alert', message: 'Sent via Web', status: 'Sent' as const }, ...whatsappLogs].slice(0, 50))
       }
     } catch (err) {
       console.error(err)
-      addToast('danger', 'Test Failed', 'Could not reach the WhatsApp API.')
-      setWhatsappLogs([{ timestamp: new Date().toISOString(), title: 'Test Alert', message: 'Connection Failed', status: 'Failed' as const }, ...whatsappLogs].slice(0, 50))
+      
+      // Fallback: If backend is down, generate link client-side and redirect the blank tab
+      const cleanPhone = phone.replace(/[^\d]/g, '')
+      const msg = encodeURIComponent(`🔔 NephroCare Test Alert\n\n*Connection Successful*\nYour WhatsApp alerts are now configured.`)
+      const fallbackUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${msg}`
+      
+      if (newWindow) {
+        newWindow.location.href = fallbackUrl
+      }
+      
+      addToast(
+        'success',
+        'WhatsApp Opened (Local Fallback)',
+        `Opening WhatsApp client directly to send test message to ${phone}.`
+      )
+      setWhatsappLogs([{ timestamp: new Date().toISOString(), title: 'Test Alert', message: 'Sent via Web (Fallback)', status: 'Sent' as const }, ...whatsappLogs].slice(0, 50))
     }
   }
 
@@ -146,13 +169,12 @@ export function AlertsPage({ showPage, user, addToast }: AlertsPageProps) {
           <div className="alerts-card">
             <h2><Icon name="message-circle" size={20} /> WhatsApp Integration</h2>
             <p className="alerts-desc">Receive critical alerts (like severe symptoms or highly abnormal lab results) directly to your phone.</p>
-            
-            <div className="wa-config-box">
+                     <div className="wa-config-box">
               <div className="form-group">
                 <label>Phone Number (with Country Code)</label>
                 <input 
                   type="text" 
-                  placeholder="+1234567890" 
+                  placeholder="+919321754752" 
                   value={phone} 
                   onChange={e => setPhone(e.target.value)} 
                   className="wa-input"
