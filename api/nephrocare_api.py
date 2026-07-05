@@ -25,7 +25,10 @@ from pathlib import Path
 from typing import Any
 
 
+import sys
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.append(str(ROOT))
 MODEL_DIR = ROOT / "models"
 FOOD_DATA = ROOT / "data" / "processed" / "indian_ckd_foods.csv"
 USDA_FOOD_DATA = ROOT / "data" / "raw" / "food_data_csv" / "food.csv"
@@ -1223,7 +1226,7 @@ class Handler(BaseHTTPRequestHandler):
     def end_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         super().end_headers()
 
     def respond(self, status: int, payload: dict[str, Any]) -> None:
@@ -1237,8 +1240,47 @@ class Handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self) -> None:
         self.respond(204, {})
 
+    def get_authenticated_user(self) -> dict[str, Any] | None:
+        auth_header = self.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+            from api.auth import verify_token
+            return verify_token(token)
+        return None
+
     def do_GET(self) -> None:
-        if self.path == "/api/health":
+        if self.path == "/api/auth/me":
+            user = self.get_authenticated_user()
+            if not user:
+                self.respond(401, {"error": "Unauthorized"})
+                return
+            self.respond(200, user)
+            return
+        
+        elif self.path == "/api/patient/profile":
+            user = self.get_authenticated_user()
+            if not user:
+                self.respond(401, {"error": "Unauthorized"})
+                return
+            from api import db
+            profile = db.get_profile(user["id"])
+            if not profile:
+                self.respond(200, {})
+                return
+            self.respond(200, profile)
+            return
+            
+        elif self.path == "/api/patient/history":
+            user = self.get_authenticated_user()
+            if not user:
+                self.respond(401, {"error": "Unauthorized"})
+                return
+            from api import db
+            history = db.get_history(user["id"])
+            self.respond(200, history)
+            return
+
+        elif self.path == "/api/health":
             try:
                 model_state = load_model() | {"model": None, "scaler": None, "encoders": {}}
                 self.respond(200, {"ok": True, "model": model_state})
@@ -1261,6 +1303,184 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(404, {"error": "Not found"})
 
     def do_POST(self) -> None:
+        if self.path == "/api/auth/signup":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length).decode("utf-8") if length else "{}"
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                self.respond(400, {"error": "Invalid JSON"})
+                return
+            
+            name = payload.get("name", "").strip()
+            email = payload.get("email", "").strip()
+            password = payload.get("password", "")
+            
+            from api import auth
+            user, token = auth.signup(name, email, password)
+            if not user:
+                self.respond(400, {"error": token})
+                return
+            
+            self.respond(200, {"user": user, "token": token})
+            return
+
+        if self.path == "/api/auth/login":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length).decode("utf-8") if length else "{}"
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                self.respond(400, {"error": "Invalid JSON"})
+                return
+            
+            email = payload.get("email", "").strip()
+            password = payload.get("password", "")
+            
+            from api import auth
+            user, token = auth.login(email, password)
+            if not user:
+                self.respond(400, {"error": token})
+                return
+            
+            self.respond(200, {"user": user, "token": token})
+            return
+
+        if self.path == "/api/auth/google":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length).decode("utf-8") if length else "{}"
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                self.respond(400, {"error": "Invalid JSON"})
+                return
+            
+            token_jwt = payload.get("token", "")
+            if not token_jwt:
+                self.respond(400, {"error": "Missing Google token"})
+                return
+            
+            import base64
+            try:
+                parts = token_jwt.split('.')
+                if len(parts) != 3:
+                    raise ValueError("Invalid JWT format")
+                payload_b64 = parts[1]
+                payload_b64 += '=' * (-len(payload_b64) % 4)
+                payload_json = base64.urlsafe_b64decode(payload_b64.encode('utf-8')).decode('utf-8')
+                google_user_info = json.loads(payload_json)
+            except Exception as exc:
+                self.respond(400, {"error": f"Failed to decode Google token: {str(exc)}"})
+                return
+            
+            from api import auth
+            user, token = auth.google_login(google_user_info)
+            if not user:
+                self.respond(400, {"error": token})
+                return
+            
+            self.respond(200, {"user": user, "token": token})
+            return
+
+        if self.path == "/api/auth/logout":
+            auth_header = self.headers.get("Authorization", "")
+            if auth_header.startswith("Bearer "):
+                token = auth_header[7:].strip()
+                from api import auth
+                auth.logout(token)
+            self.respond(200, {"success": True})
+            return
+
+        if self.path == "/api/patient/profile":
+            user = self.get_authenticated_user()
+            if not user:
+                self.respond(401, {"error": "Unauthorized"})
+                return
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length).decode("utf-8") if length else "{}"
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                self.respond(400, {"error": "Invalid JSON"})
+                return
+            
+            from api import db
+            updated_profile = db.upsert_profile(user["id"], payload)
+            self.respond(200, updated_profile)
+            return
+
+        if self.path == "/api/patient/predictions":
+            user = self.get_authenticated_user()
+            if not user:
+                self.respond(401, {"error": "Unauthorized"})
+                return
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length).decode("utf-8") if length else "{}"
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                self.respond(400, {"error": "Invalid JSON"})
+                return
+            
+            from api import db
+            db.add_prediction(user["id"], payload)
+            self.respond(200, {"success": True})
+            return
+
+        if self.path == "/api/patient/ultrasound-scans":
+            user = self.get_authenticated_user()
+            if not user:
+                self.respond(401, {"error": "Unauthorized"})
+                return
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length).decode("utf-8") if length else "{}"
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                self.respond(400, {"error": "Invalid JSON"})
+                return
+            
+            from api import db
+            db.add_ultrasound(user["id"], payload)
+            self.respond(200, {"success": True})
+            return
+
+        if self.path == "/api/patient/symptom-logs":
+            user = self.get_authenticated_user()
+            if not user:
+                self.respond(401, {"error": "Unauthorized"})
+                return
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length).decode("utf-8") if length else "{}"
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                self.respond(400, {"error": "Invalid JSON"})
+                return
+            
+            from api import db
+            db.add_symptom_log(user["id"], payload)
+            self.respond(200, {"success": True})
+            return
+
+        if self.path == "/api/patient/food-checks":
+            user = self.get_authenticated_user()
+            if not user:
+                self.respond(401, {"error": "Unauthorized"})
+                return
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length).decode("utf-8") if length else "{}"
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                self.respond(400, {"error": "Invalid JSON"})
+                return
+            
+            from api import db
+            db.add_food_check(user["id"], payload)
+            self.respond(200, {"success": True})
+            return
+
         if self.path == "/api/wearable/telemetry":
             length = int(self.headers.get("Content-Length", "0"))
             raw = self.rfile.read(length).decode("utf-8") if length else "{}"
@@ -1795,6 +2015,12 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    try:
+        from api.db import init_db
+        init_db()
+    except Exception as e:
+        print(f"PostgreSQL database init failed: {e}")
+        
     server = ThreadingHTTPServer(("127.0.0.1", 8000), Handler)
     print("NephroCare API running at http://127.0.0.1:8000", flush=True)
     server.serve_forever()
