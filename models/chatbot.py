@@ -645,6 +645,8 @@ INSTRUCTIONS:
 - Be empathetic about burden of CKD
 - Never hesitate to recommend professional consultation
 - If uncertain, admit limitations and suggest doctor consultation
+- If the user asks for hospitals, clinics, or doctors, suggest using the Google Maps links below, and explicitly ask them for their city or location so you can recommend local hospitals.
+- If the user specifies a city or location (e.g. "Mumbai", "Delhi", "Pune"), you MUST generate direct Google Maps search links for that city. Format links strictly as standard markdown: `[Kidney Hospitals in {{City}}](https://www.google.com/maps/search/?api=1&query=kidney+care+hospitals+in+{{City}})` and `[Nephrologists in {{City}}](https://www.google.com/maps/search/?api=1&query=nephrologists+in+{{City}})`.
 - Always prioritize patient safety
 
 REMINDER: Your ENTIRE response must be written in {language}. Not English. Not mixed. Only {language}.
@@ -978,6 +980,51 @@ REMINDER: Your ENTIRE response must be written in {language}. Not English. Not m
             )
             
             response_text = response.text
+            
+            # Inject location finder if relevant keywords are present
+            query_lower = user_message.lower()
+            if any(kw in query_lower for kw in ["hospital", "clinic", "doctor", "nephrologist", "neurologist", "near me", "maps", "latitude"]):
+                # Parse coordinates if present
+                lat_lng_match = re.search(r"latitude:\s*(-?\d+\.\d+),\s*longitude:\s*(-?\d+\.\d+)", query_lower)
+                if lat_lng_match:
+                    lat_str = lat_lng_match.group(1)
+                    lng_str = lat_lng_match.group(2)
+                    loc_suffix = f"near+{lat_str},{lng_str}"
+                    loc_display = f"near coordinates ({lat_str}, {lng_str})"
+                else:
+                    loc_suffix = "near+me"
+                    loc_display = "near you"
+
+                finder_block = (
+                    "\n\n---\n\n"
+                    f"### 🏥 Kidney & Neurology Care Finder ({loc_display})\n"
+                    "To find specialist clinics and emergency hospitals near your location, please click on the following direct Google Maps shortcuts:\n"
+                    f"🗺️ [Find Kidney & Nephrology Hospitals Near Me (Google Maps)](https://www.google.com/maps/search/?api=1&query=kidney+care+hospitals+{loc_suffix})\n"
+                    f"🗺️ [Find Nephrologists / Kidney Specialists Near Me (Google Maps)](https://www.google.com/maps/search/?api=1&query=nephrologists+{loc_suffix})\n"
+                    f"🗺️ [Find Neurologists / Brain Specialists Near Me (Google Maps)](https://www.google.com/maps/search/?api=1&query=neurologists+{loc_suffix})\n\n"
+                    "#### Recommended Nephrology & Kidney Care Centers (India)\n"
+                    "1. Apollo Hospitals (Greams Road, Chennai)\n"
+                    "   - Address: 21, Greams Lane, Off Greams Road, Chennai - 600006\n"
+                    "   - Phone: +91 44 2829 0200\n"
+                    "   - Google Maps: [View on Google Maps](https://www.google.com/maps/search/?api=1&query=Apollo+Hospitals+Greams+Road+Chennai)\n"
+                    "2. Indraprastha Apollo Hospitals (New Delhi)\n"
+                    "   - Address: Sarita Vihar, Delhi Mathura Road, New Delhi - 110076\n"
+                    "   - Phone: +91 11 2692 5858\n"
+                    "   - Google Maps: [View on Google Maps](https://www.google.com/maps/search/?api=1&query=Indraprastha+Apollo+Hospitals+New+Delhi)\n"
+                    "3. Medanta - The Medicity (Gurugram)\n"
+                    "   - Address: CH Baktawar Singh Road, Sector 38, Gurugram, Haryana - 122001\n"
+                    "   - Phone: +91 124 414 1414\n"
+                    "   - Google Maps: [View on Google Maps](https://www.google.com/maps/search/?api=1&query=Medanta+The+Medicity+Gurugram)\n\n"
+                    "#### Recommended Kidney & Neurology Specialists\n"
+                    "• Dr. Sandeep Guleria (Senior Consultant, Nephrology & Transplant)\n"
+                    "  - Hospital: Indraprastha Apollo Hospitals, New Delhi\n"
+                    "  - Phone: +91 11 2692 5858\n"
+                    "• Dr. Vijay Kher (Chairman, Nephrology Division)\n"
+                    "  - Hospital: Medanta - The Medicity, Gurugram\n"
+                    "  - Phone: +91 124 414 1414\n\n"
+                    "Please let me know your city or location (for example: Mumbai, Delhi, Bangalore) so I can suggest specific hospitals near you!"
+                )
+                response_text += finder_block
             
             # Parse response into structured format
             structured_response = self._parse_medical_response(response_text, tool_results)

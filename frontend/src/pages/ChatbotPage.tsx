@@ -64,6 +64,320 @@ const WELCOME_MESSAGES: Record<string, string> = {
   ur: `السلام علیکم {name}! میں آپ کا AI نیفرولوجی معاون ہوں۔ گردے کے افعال، KDIGO رہنما اصول، لیب رپورٹ، دوا کی حفاظت وضاحت کر سکتا ہوں۔ آج آپ کی کیا مدد کروں؟`,
 }
 
+const renderMessageContent = (content: string) => {
+  let text = content;
+  
+  // 1. Match and extract hospital cards
+  const hospitals: Array<{ name: string; address: string; phone: string; mapsUrl: string }> = [];
+  const hospitalRegex = /\d+\.\s+([^\n]+)\n\s+-\s+Address:\s+([^\n]+)\n\s+-\s+Phone:\s+([^\n]+)\n\s+-\s+Google Maps:\s+\[View on Google Maps\]\(([^)]+)\)/g;
+  
+  let hMatch;
+  while ((hMatch = hospitalRegex.exec(content)) !== null) {
+    hospitals.push({
+      name: hMatch[1],
+      address: hMatch[2],
+      phone: hMatch[3],
+      mapsUrl: hMatch[4]
+    });
+  }
+  
+  text = text.replace(hospitalRegex, '');
+
+  // 2. Match and extract doctor cards
+  const doctors: Array<{ name: string; hospital: string; phone: string }> = [];
+  const doctorRegex = /•\s+([^\n]+)\n\s+-\s+Hospital:\s+([^\n]+)\n\s+-\s+Phone:\s+([^\n]+)/g;
+  
+  let dMatch;
+  while ((dMatch = doctorRegex.exec(content)) !== null) {
+    doctors.push({
+      name: dMatch[1],
+      hospital: dMatch[2],
+      phone: dMatch[3]
+    });
+  }
+  
+  text = text.replace(doctorRegex, '');
+  
+  text = text.replace(/####\s+Recommended\s+Nephrology\s+&\s+Kidney\s+Care\s+Centers\s*\(India\)\s*\n/gi, '');
+  text = text.replace(/####\s+Recommended\s+Kidney\s+&\s+Neurology\s+Specialists\s*\n/gi, '');
+
+  const lines = text.split('\n');
+  const renderedLines: React.ReactNode[] = [];
+  let mapsQuery: string | null = null;
+
+  const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  let linkMatch;
+  while ((linkMatch = linkRegex.exec(content)) !== null) {
+    const url = linkMatch[2];
+    if (url.includes('google.com/maps/search')) {
+      try {
+        const urlObj = new URL(url);
+        const query = urlObj.searchParams.get('query');
+        if (query && !mapsQuery) {
+          mapsQuery = query;
+        }
+      } catch (e) {
+        if (url.includes('query=')) {
+          const partsQuery = url.split('query=')[1];
+          if (partsQuery && !mapsQuery) {
+            mapsQuery = decodeURIComponent(partsQuery.split('&')[0]);
+          }
+        }
+      }
+    }
+  }
+
+  const parseLinks = (lineText: string, lineKey: string) => {
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+    const innerLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    
+    while ((match = innerLinkRegex.exec(lineText)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(lineText.substring(lastIndex, match.index));
+      }
+      
+      const label = match[1];
+      const url = match[2];
+      
+      if (url.includes('google.com/maps/search')) {
+        parts.push(
+          <a 
+            key={`${lineKey}-${match.index}`}
+            href={url} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            style={{ 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '6px', 
+              background: 'white', 
+              color: '#0284c7', 
+              border: '1px solid #0284c7', 
+              padding: '6px 14px', 
+              borderRadius: '20px', 
+              textDecoration: 'none', 
+              fontWeight: 600, 
+              fontSize: '12.5px', 
+              margin: '4px 4px',
+              boxShadow: '0 2px 4px rgba(2, 132, 199, 0.05)',
+              transition: 'all 0.2s',
+              verticalAlign: 'middle'
+            }}
+            className="maps-redirect-btn"
+          >
+            📍 {label}
+          </a>
+        );
+      } else {
+        parts.push(
+          <a 
+            key={`${lineKey}-${match.index}`}
+            href={url} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            style={{ color: 'var(--blue)', fontWeight: 600, textDecoration: 'underline' }}
+          >
+            {label}
+          </a>
+        );
+      }
+      
+      lastIndex = innerLinkRegex.lastIndex;
+    }
+    
+    if (lastIndex < lineText.length) {
+      parts.push(lineText.substring(lastIndex));
+    }
+    
+    return parts.length > 0 ? parts : lineText;
+  };
+
+  lines.forEach((line, index) => {
+    const lineKey = `line-${index}`;
+    const trimmed = line.trim();
+    
+    if (trimmed.startsWith('### ')) {
+      const headerText = trimmed.replace('### ', '');
+      renderedLines.push(
+        <h3 key={lineKey} style={{ margin: '14px 0 6px', color: '#0f172a', fontSize: '16px', fontWeight: 700 }}>
+          {parseLinks(headerText, lineKey)}
+        </h3>
+      );
+    } else if (trimmed.startsWith('#### ')) {
+      const headerText = trimmed.replace('#### ', '');
+      renderedLines.push(
+        <h4 key={lineKey} style={{ margin: '12px 0 6px', color: '#334155', fontSize: '14.5px', fontWeight: 700 }}>
+          {parseLinks(headerText, lineKey)}
+        </h4>
+      );
+    } else if (trimmed.startsWith('##### ')) {
+      const headerText = trimmed.replace('##### ', '');
+      renderedLines.push(
+        <h5 key={lineKey} style={{ margin: '10px 0 4px', color: '#475569', fontSize: '13px', fontWeight: 700 }}>
+          {parseLinks(headerText, lineKey)}
+        </h5>
+      );
+    } else {
+      if (trimmed === '---' || trimmed === '') {
+        renderedLines.push(<div key={lineKey} style={{ minHeight: '8px' }} />);
+      } else {
+        renderedLines.push(
+          <div key={lineKey} style={{ margin: '4px 0' }}>
+            {parseLinks(line, lineKey)}
+          </div>
+        );
+      }
+    }
+  });
+
+  return (
+    <div>
+      <div>{renderedLines}</div>
+      
+      {hospitals.length > 0 && (
+        <div style={{ marginTop: '16px' }}>
+          <h4 style={{ color: '#0f172a', fontSize: '14px', fontWeight: 700, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            🏥 Recommended Kidney & Neurology Care Centers
+          </h4>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '14px' }}>
+            {hospitals.map((h, i) => (
+              <div 
+                key={i} 
+                style={{ 
+                  background: 'white', 
+                  border: '1px solid #cbd5e1', 
+                  borderRadius: '12px', 
+                  padding: '16px', 
+                  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}
+              >
+                <div style={{ fontSize: '15px', fontWeight: 700, color: '#0369a1' }}>
+                  {h.name}
+                </div>
+                <div style={{ fontSize: '13px', color: '#475569', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                  <span style={{ fontSize: '14px' }}>📍</span>
+                  <span>{h.address}</span>
+                </div>
+                <div style={{ fontSize: '13px', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '14px' }}>📞</span>
+                  <a href={`tel:${h.phone.replace(/\s+/g, '')}`} style={{ color: 'var(--blue)', fontWeight: 600, textDecoration: 'none' }}>
+                    {h.phone}
+                  </a>
+                </div>
+                <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                  <a 
+                    href={h.mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      flex: 1,
+                      textAlign: 'center',
+                      background: 'var(--blue)',
+                      color: 'white',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      fontWeight: 600,
+                      fontSize: '12.5px',
+                      textDecoration: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    🗺️ Directions
+                  </a>
+                  <a 
+                    href={`tel:${h.phone.replace(/\s+/g, '')}`}
+                    style={{
+                      flex: 1,
+                      textAlign: 'center',
+                      background: '#f1f5f9',
+                      color: '#475569',
+                      border: '1px solid #cbd5e1',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      fontWeight: 600,
+                      fontSize: '12.5px',
+                      textDecoration: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    📞 Call Hospital
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {doctors.length > 0 && (
+        <div style={{ marginTop: '20px' }}>
+          <h4 style={{ color: '#0f172a', fontSize: '14px', fontWeight: 700, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            👨‍⚕️ Recommended Kidney & Neurology Specialists
+          </h4>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
+            {doctors.map((d, i) => (
+              <div 
+                key={i} 
+                style={{ 
+                  background: '#f8fafc', 
+                  border: '1px solid #e2e8f0', 
+                  borderRadius: '12px', 
+                  padding: '14px', 
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px'
+                }}
+              >
+                <div style={{ fontSize: '14.5px', fontWeight: 700, color: '#0f172a' }}>
+                  {d.name}
+                </div>
+                <div style={{ fontSize: '12.5px', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>🏢</span>
+                  <span>{d.hospital}</span>
+                </div>
+                <div style={{ fontSize: '12.5px', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>📞</span>
+                  <a href={`tel:${d.phone.replace(/\s+/g, '')}`} style={{ color: 'var(--blue)', fontWeight: 600, textDecoration: 'none' }}>
+                    {d.phone}
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      
+      {mapsQuery && (
+        <div style={{ marginTop: '18px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+          <div style={{ background: '#f8fafc', padding: '8px 12px', borderBottom: '1px solid #e2e8f0', fontSize: '11px', fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            🗺️ Live Google Maps Preview
+          </div>
+          <iframe 
+            src={`https://maps.google.com/maps?q=${encodeURIComponent(mapsQuery)}&t=&z=13&ie=UTF8&iwloc=&output=embed`}
+            width="100%" 
+            height="260" 
+            style={{ border: 0, display: 'block' }} 
+            allowFullScreen 
+            loading="lazy"
+            title="Google Maps Location Preview"
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
 export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
   const userName = user ? user.name : 'there'
   const makeWelcome = (lang: string) => {
@@ -106,6 +420,46 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
   const [customSodium, setCustomSodium] = useState<string>(form.sodium ? form.sodium.toString() : '138')
   const [customMedications, setCustomMedications] = useState<string>('')
   const [customComorbidities, setCustomComorbidities] = useState<string>('')
+  
+  // Geolocation and Autolocate state hooks
+  const [autolocating, setAutolocating] = useState(false)
+  const [locationError, setLocationError] = useState<string | null>(null)
+
+  const handleAutolocate = () => {
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation is not supported by your browser.")
+      return
+    }
+    
+    setAutolocating(true)
+    setLocationError(null)
+    
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude
+        const lng = position.coords.longitude
+        setAutolocating(false)
+        handleSendMessage(`Show kidney care hospitals and nephrologists near my location (latitude: ${lat.toFixed(4)}, longitude: ${lng.toFixed(4)})`)
+      },
+      (error) => {
+        setAutolocating(false)
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            setLocationError("Location permission was denied. Please write your city manually.")
+            break;
+          case error.POSITION_UNAVAILABLE:
+            setLocationError("Location position information is unavailable.")
+            break;
+          case error.TIMEOUT:
+            setLocationError("Location request timed out.")
+            break;
+          default:
+            setLocationError("An unknown error occurred while retrieving location.")
+        }
+      },
+      { timeout: 10000 }
+    )
+  }
 
   const chatEndRef = useRef<HTMLDivElement>(null)
 
@@ -228,6 +582,59 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
           </div>
         </div>
 
+        {/* Live Location Hospital Finder Widget Card */}
+        <div style={{ 
+          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', 
+          color: 'white', 
+          padding: '16px 20px', 
+          borderRadius: '12px', 
+          marginBottom: '20px',
+          boxShadow: '0 8px 16px -4px rgba(3, 105, 161, 0.25)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px'
+        }}>
+          <div style={{ flex: 1, minWidth: '240px' }}>
+            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', color: 'white' }}>
+              📍 Dialysis & Kidney Care Finder
+            </h3>
+            <p style={{ margin: '4px 0 0', fontSize: '12.5px', opacity: 0.9, color: '#e0f2fe' }}>
+              Auto-detect your location to instantly list kidney care centers and contact specialists near your live GPS coordinates.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleAutolocate}
+            disabled={autolocating}
+            style={{
+              background: 'white',
+              color: '#0369a1',
+              border: 'none',
+              padding: '10px 20px',
+              borderRadius: '25px',
+              fontWeight: 700,
+              fontSize: '12.5px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.08)',
+              transition: 'transform 0.2s',
+              outline: 'none'
+            }}
+          >
+            {autolocating ? '🛰️ Locating...' : '🛰️ Autolocate Me'}
+          </button>
+        </div>
+
+        {locationError && (
+          <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', color: '#991b1b', padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '12.5px', fontWeight: 500 }}>
+            ⚠️ {locationError}
+          </div>
+        )}
+
         {/* Chat Balloon History */}
         <div style={{ flex: 1, overflowY: 'auto', paddingRight: '6px', marginBottom: '16px', minHeight: '350px', maxHeight: '550px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {messages.map((msg, index) => (
@@ -244,8 +651,8 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
                 boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
               }}>
                 {/* Standard Message content */}
-                <div style={{ fontSize: '14.5px', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
-                  {msg.content}
+                <div style={{ fontSize: '14.5px', lineHeight: 1.6 }}>
+                  {renderMessageContent(msg.content)}
                 </div>
 
                 {/* Structured Medical Breakdown (Assistant responses only) */}

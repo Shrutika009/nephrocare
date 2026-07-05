@@ -30,6 +30,8 @@ class Medication:
     """Extracted medication information."""
     name: str
     dose: Optional[str] = None
+    strength: Optional[str] = None
+    unit: Optional[str] = None
     frequency: Optional[str] = None
     duration: Optional[str] = None
     route: str = "oral"

@@ -13,7 +13,7 @@ from prescription_parser import PrescriptionParser
 from medication_database import MedicationDatabase, InteractionChecker
 from risk_scorer import RiskScorer
 from report_generator import ReportGenerator
-from models import PrescriptionAnalysisResult, Medication, Nutrient, DrugInteraction
+from voice_analysis.models import PrescriptionAnalysisResult, Medication, Nutrient, DrugInteraction
 
 logger = logging.getLogger(__name__)
 
