@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react'
 import { Icon } from '../components/Icon'
 import type { Page } from '../types'
+import { useAuth } from '../contexts/AuthContext'
 
 type AuthPageProps = {
   initialMode: 'login' | 'signup'
@@ -9,6 +10,7 @@ type AuthPageProps = {
 }
 
 export function AuthPage({ initialMode, showPage, onLoginSuccess }: AuthPageProps) {
+  const { login, signup, loginWithGoogle } = useAuth()
   const [mode, setMode] = useState<'login' | 'signup'>(initialMode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -31,23 +33,34 @@ export function AuthPage({ initialMode, showPage, onLoginSuccess }: AuthPageProp
         try {
           google.accounts.id.initialize({
             client_id: client_id,
-            callback: (response: any) => {
-              // Decode standard JWT credential token returned by Google
-              const base64Url = response.credential.split('.')[1]
-              const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
-              const jsonPayload = decodeURIComponent(
-                atob(base64)
-                  .split('')
-                  .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-                  .join('')
-              )
-              const payload = JSON.parse(jsonPayload)
+            callback: async (response: any) => {
+              try {
+                setLoading(true)
+                setError('')
+                await loginWithGoogle(response.credential)
+                
+                // Decode standard JWT credential token returned by Google to pass to legacy handler
+                const base64Url = response.credential.split('.')[1]
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+                const jsonPayload = decodeURIComponent(
+                  atob(base64)
+                    .split('')
+                    .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                    .join('')
+                )
+                const payload = JSON.parse(jsonPayload)
 
-              onLoginSuccess({
-                name: payload.name || payload.given_name || 'Google User',
-                email: payload.email
-              })
-              showPage('dashboard')
+                onLoginSuccess({
+                  name: payload.name || payload.given_name || 'Google User',
+                  email: payload.email
+                })
+                showPage('dashboard')
+              } catch (err: any) {
+                console.error('Google Sign-In failed:', err)
+                setError(err.message || 'Google Sign-In failed.')
+              } finally {
+                setLoading(false)
+              }
             }
           })
           setGoogleSdkReady(true)
@@ -83,7 +96,7 @@ export function AuthPage({ initialMode, showPage, onLoginSuccess }: AuthPageProp
     }
   }, [client_id, googleSdkReady, mode])
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
     
@@ -93,15 +106,20 @@ export function AuthPage({ initialMode, showPage, onLoginSuccess }: AuthPageProp
     }
 
     setLoading(true)
-    setTimeout(() => {
-      setLoading(false)
-      const userName = mode === 'signup' ? name : email.split('@')[0]
-      onLoginSuccess({
-        name: userName.charAt(0).toUpperCase() + userName.slice(1),
-        email: email
-      })
+    try {
+      if (mode === 'signup') {
+        await signup(name, email, password)
+        onLoginSuccess({ name, email })
+      } else {
+        await login(email, password)
+        onLoginSuccess({ name: email.split('@')[0], email })
+      }
       showPage('dashboard')
-    }, 1000)
+    } catch (err: any) {
+      setError(err.message || 'Authentication failed. Please check your credentials.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

@@ -20,12 +20,13 @@ import { VoiceAssistPage } from './pages/VoiceAssistPage'
 import type { FoodAnalysis, FoodPlanResponse, FoodScanResponse, MealPlanResponse, Page, PredictionForm, PredictionResult, UltrasoundScanResult, Toast, ToastType } from './types'
 import { reportData } from './utils/format'
 import { useEffect } from 'react'
+import { useAuth } from './contexts/AuthContext'
 
 function App() {
+  const { user, logout } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [featuresOpen, setFeaturesOpen] = useState(false)
   const [page, setPage] = useState<Page>('home')
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null)
   const [form, setForm] = useState<PredictionForm>(initialPredictionForm)
   const [result, setResult] = useState<PredictionResult | null>(null)
   const [predictionStep, setPredictionStep] = useState<PredictionStep>('calculator')
@@ -95,6 +96,58 @@ function App() {
     return () => clearInterval(interval);
   }, [user]);
 
+  // Synchronize database history data to localStorage on user login
+  useEffect(() => {
+    const syncDbData = async () => {
+      if (!user) return
+      try {
+        const token = localStorage.getItem('auth_token')
+        if (!token) return
+        
+        // 1. Fetch patient profile
+        const profileRes = await fetch(`${API_BASE_URL}/api/patient/profile`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (profileRes.ok) {
+          const profile = await profileRes.json()
+          if (profile && Object.keys(profile).length > 0) {
+            localStorage.setItem('nephrocare_profile', JSON.stringify(profile))
+            // Sync form metrics from profile if applicable
+            setForm(prev => ({
+              ...prev,
+              age: profile.dob ? new Date().getFullYear() - new Date(profile.dob).getFullYear() : prev.age,
+              sex: profile.gender || prev.sex,
+            }))
+          }
+        }
+
+        // 2. Fetch history
+        const historyRes = await fetch(`${API_BASE_URL}/api/patient/history`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (historyRes.ok) {
+          const history = await historyRes.json()
+          if (history.predictions) {
+            localStorage.setItem('nephrocare_predictions', JSON.stringify(history.predictions))
+          }
+          if (history.scans) {
+            localStorage.setItem('nephrocare_ultrasound_scans', JSON.stringify(history.scans))
+          }
+          if (history.symptoms) {
+            localStorage.setItem('nephrocare_symptom_logs', JSON.stringify(history.symptoms))
+          }
+          if (history.foodChecks) {
+            localStorage.setItem('nephrocare_food_checks', JSON.stringify(history.foodChecks))
+          }
+        }
+      } catch (err) {
+        console.error('Failed to sync history from database:', err)
+      }
+    }
+    
+    syncDbData()
+  }, [user])
+
   const closeMenus = () => {
     setMobileOpen(false)
     setFeaturesOpen(false)
@@ -151,6 +204,18 @@ function App() {
           stage: data.kidney_function.egfr_category
         }
         localStorage.setItem('nephrocare_predictions', JSON.stringify([newEntry, ...history]))
+        
+        const token = localStorage.getItem('auth_token')
+        if (user && token) {
+          fetch(`${API_BASE_URL}/api/patient/predictions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(newEntry)
+          }).catch(err => console.error('Failed to save prediction to DB:', err))
+        }
       } catch (err) {
         console.error('Failed to save prediction to history:', err)
       }
@@ -238,6 +303,18 @@ function App() {
           category: data.category
         }
         localStorage.setItem('nephrocare_food_checks', JSON.stringify([newEntry, ...history].slice(0, 5)))
+        
+        const token = localStorage.getItem('auth_token')
+        if (user && token) {
+          fetch(`${API_BASE_URL}/api/patient/food-checks`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(newEntry)
+          }).catch(err => console.error('Failed to save food check to DB:', err))
+        }
       } catch (err) {
         console.error('Failed to save food check to history:', err)
       }
@@ -351,18 +428,19 @@ function App() {
       closeMenus={closeMenus}
       user={user}
       onLogout={() => {
-        setUser(null)
+        logout()
         // Clear demo data so the next login is a fresh slate
         localStorage.removeItem('nephrocare_predictions')
         localStorage.removeItem('nephrocare_ultrasound_scans')
         localStorage.removeItem('nephrocare_symptom_logs')
         localStorage.removeItem('nephrocare_food_checks')
+        localStorage.removeItem('nephrocare_profile')
       }}
     />
 
     {page === 'home' && <HomePage showPage={showPage} />}
-    {page === 'login' && <AuthPage initialMode="login" showPage={showPage} onLoginSuccess={setUser} />}
-    {page === 'signup' && <AuthPage initialMode="signup" showPage={showPage} onLoginSuccess={setUser} />}
+    {page === 'login' && <AuthPage initialMode="login" showPage={showPage} onLoginSuccess={() => {}} />}
+    {page === 'signup' && <AuthPage initialMode="signup" showPage={showPage} onLoginSuccess={() => {}} />}
     {page === 'dashboard' && <DashboardPage 
       user={user} 
       showPage={showPage} 
