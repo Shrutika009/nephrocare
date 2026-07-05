@@ -750,11 +750,47 @@ def meal_plan(stage: str, hypertension: bool, diabetes: bool) -> dict[str, Any]:
     }
 
 
+def ai_food_analysis(food_name: str) -> dict[str, Any] | None:
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key or api_key == "your_gemini_api_key_here":
+        return None
+    try:
+        from google import genai
+        from google.genai import types
+        client = genai.Client(api_key=api_key)
+        prompt = f"""Estimate the nutritional breakdown for 100g of the food: '{food_name}'.
+Return ONLY a raw JSON object with exactly these keys (numbers only, no units in values):
+- category (string, e.g. 'Cereals and millets', 'Vegetables', 'Fruits', 'Fast Food')
+- protein_g (float)
+- energy_kcal (float)
+- potassium_mg (float)
+- phosphorus_mg (float)
+- sodium_mg (float)
+Do not use markdown formatting."""
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[prompt],
+        )
+        text = response.text or ""
+        if text.startswith("```json"):
+            text = text.split("```json")[1].split("```")[0].strip()
+        data = json.loads(text)
+        data["food_name"] = food_name
+        data["safety"] = "" # let food_status compute it
+        return data
+    except Exception as e:
+        print(f"AI Food Analysis failed: {e}")
+        return None
+
+
 def manual_food_analysis(food_name: str) -> dict[str, Any] | None:
     result = search_food(food_name)
     if result is None or len(result) == 0:
-        return None
-    row = result.iloc[0]
+        row = ai_food_analysis(food_name)
+        if not row:
+            return None
+    else:
+        row = result.iloc[0]
     payload = classify_food(row)
     payload["matched_food"] = payload["display_name"]
     return payload

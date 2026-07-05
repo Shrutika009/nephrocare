@@ -48,14 +48,6 @@ export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpe
     </nav>
     <div className="header-actions">
       <button className="signup-button dashboard-tab" onClick={() => showPage('chatbot')} style={{marginRight: '12px', background: '#236d9f', borderColor: '#236d9f'}}>AI Assistant</button>
-      <button
-        className="header-settings-btn"
-        onClick={() => showPage('settings')}
-        title="Settings"
-        aria-label="Open Settings"
-      >
-        <Icon name="settings" size={18} />
-      </button>
       {user ? (
         <div className="user-profile-container" ref={dropdownRef} style={{ position: 'relative' }}>
           <div className="user-profile" onClick={() => setUserMenuOpen(!userMenuOpen)} style={{ cursor: 'pointer', userSelect: 'none' }}>
@@ -95,10 +87,18 @@ export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpe
         </div>
       ) : (
         <>
-          <button type="button" className="login-button" onClick={() => showPage('login')}>Login</button>
-          <button type="button" className="signup-button" onClick={() => showPage('signup')}>Sign up</button>
+          <button type="button" className="signup-button" onClick={() => showPage('login')}>Login / Sign up</button>
         </>
       )}
+      <button
+        className="header-settings-btn"
+        onClick={() => showPage('settings')}
+        title="Settings"
+        aria-label="Open Settings"
+        style={{ marginLeft: '12px' }}
+      >
+        <Icon name="settings" size={18} />
+      </button>
     </div>
     <button className="mobile-menu" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Toggle menu"><Icon name={mobileOpen ? 'x' : 'menu'} /></button>
 

@@ -252,7 +252,6 @@ function CheckFoodPanel({ foodName, setFoodName, foodCheck, foodLoading, checkFo
     <section className="food-results-card">
       <div className="food-card-heading">
         <span><Icon name="shield" size={18} /> Food safety</span>
-        <small>Dataset lookup</small>
       </div>
       <p>Type a food name or choose a common Indian item to see whether it is safe, moderate, or risky for CKD.</p>
       <div className="nutrition-inline food-search-row">
