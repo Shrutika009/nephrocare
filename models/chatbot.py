@@ -997,11 +997,11 @@ REMINDER: Your ENTIRE response must be written in {language}. Not English. Not m
 
                 finder_block = (
                     "\n\n---\n\n"
-                    f"### 🏥 Kidney & Neurology Care Finder ({loc_display})\n"
+                    f"### Kidney & Neurology Care Finder ({loc_display})\n"
                     "To find specialist clinics and emergency hospitals near your location, please click on the following direct Google Maps shortcuts:\n"
-                    f"🗺️ [Find Kidney & Nephrology Hospitals Near Me (Google Maps)](https://www.google.com/maps/search/?api=1&query=kidney+care+hospitals+{loc_suffix})\n"
-                    f"🗺️ [Find Nephrologists / Kidney Specialists Near Me (Google Maps)](https://www.google.com/maps/search/?api=1&query=nephrologists+{loc_suffix})\n"
-                    f"🗺️ [Find Neurologists / Brain Specialists Near Me (Google Maps)](https://www.google.com/maps/search/?api=1&query=neurologists+{loc_suffix})\n\n"
+                    f"[Find Kidney & Nephrology Hospitals Near Me (Google Maps)](https://www.google.com/maps/search/?api=1&query=kidney+care+hospitals+{loc_suffix})\n"
+                    f"[Find Nephrologists / Kidney Specialists Near Me (Google Maps)](https://www.google.com/maps/search/?api=1&query=nephrologists+{loc_suffix})\n"
+                    f"[Find Neurologists / Brain Specialists Near Me (Google Maps)](https://www.google.com/maps/search/?api=1&query=neurologists+{loc_suffix})\n\n"
                     "#### Recommended Nephrology & Kidney Care Centers (India)\n"
                     "1. Apollo Hospitals (Greams Road, Chennai)\n"
                     "   - Address: 21, Greams Lane, Off Greams Road, Chennai - 600006\n"
