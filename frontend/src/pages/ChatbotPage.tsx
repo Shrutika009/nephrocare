@@ -167,7 +167,7 @@ const renderMessageContent = (content: string) => {
             }}
             className="maps-redirect-btn"
           >
-            📍 {label}
+            {label}
           </a>
         );
       } else {
@@ -239,7 +239,7 @@ const renderMessageContent = (content: string) => {
       {hospitals.length > 0 && (
         <div style={{ marginTop: '16px' }}>
           <h4 style={{ color: '#0f172a', fontSize: '14px', fontWeight: 700, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            🏥 Recommended Kidney & Neurology Care Centers
+            Recommended Kidney & Neurology Care Centers
           </h4>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '14px' }}>
             {hospitals.map((h, i) => (
@@ -290,7 +290,7 @@ const renderMessageContent = (content: string) => {
                       gap: '4px'
                     }}
                   >
-                    🗺️ Directions
+                    Directions
                   </a>
                   <a 
                     href={`tel:${h.phone.replace(/\s+/g, '')}`}
@@ -361,7 +361,7 @@ const renderMessageContent = (content: string) => {
       {mapsQuery && (
         <div style={{ marginTop: '18px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
           <div style={{ background: '#f8fafc', padding: '8px 12px', borderBottom: '1px solid #e2e8f0', fontSize: '11px', fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            🗺️ Live Google Maps Preview
+             Live Google Maps Preview
           </div>
           <iframe 
             src={`https://maps.google.com/maps?q=${encodeURIComponent(mapsQuery)}&t=&z=13&ie=UTF8&iwloc=&output=embed`}
@@ -424,9 +424,12 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
   // Geolocation and Autolocate state hooks
   const [autolocating, setAutolocating] = useState(false)
   const [locationError, setLocationError] = useState<string | null>(null)
+  const [locationInput, setLocationInput] = useState('')
 
   const handleAutolocate = () => {
+    console.log("Autolocate button clicked...")
     if (!navigator.geolocation) {
+      console.warn("Geolocation API not supported on this browser/context.")
       setLocationError("Geolocation is not supported by your browser.")
       return
     }
@@ -438,14 +441,16 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
       (position) => {
         const lat = position.coords.latitude
         const lng = position.coords.longitude
+        console.log(`Successfully located user: lat=${lat}, lng=${lng}`)
         setAutolocating(false)
         handleSendMessage(`Show kidney care hospitals and nephrologists near my location (latitude: ${lat.toFixed(4)}, longitude: ${lng.toFixed(4)})`)
       },
       (error) => {
+        console.error("Geolocation request failed:", error)
         setAutolocating(false)
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            setLocationError("Location permission was denied. Please write your city manually.")
+            setLocationError("Location permission was denied. Please write your city manually below.")
             break;
           case error.POSITION_UNAVAILABLE:
             setLocationError("Location position information is unavailable.")
@@ -459,6 +464,13 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
       },
       { timeout: 10000 }
     )
+  }
+
+  const handleManualSearch = () => {
+    if (!locationInput.trim()) return
+    console.log(`Triggering manual location search for: ${locationInput.trim()}`)
+    handleSendMessage(`Show kidney care hospitals and nephrologists in ${locationInput.trim()}`)
+    setLocationInput('')
   }
 
   const chatEndRef = useRef<HTMLDivElement>(null)
@@ -582,58 +594,7 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
           </div>
         </div>
 
-        {/* Live Location Hospital Finder Widget Card */}
-        <div style={{ 
-          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', 
-          color: 'white', 
-          padding: '16px 20px', 
-          borderRadius: '12px', 
-          marginBottom: '20px',
-          boxShadow: '0 8px 16px -4px rgba(3, 105, 161, 0.25)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '12px'
-        }}>
-          <div style={{ flex: 1, minWidth: '240px' }}>
-            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', color: 'white' }}>
-              📍 Dialysis & Kidney Care Finder
-            </h3>
-            <p style={{ margin: '4px 0 0', fontSize: '12.5px', opacity: 0.9, color: '#e0f2fe' }}>
-              Auto-detect your location to instantly list kidney care centers and contact specialists near your live GPS coordinates.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleAutolocate}
-            disabled={autolocating}
-            style={{
-              background: 'white',
-              color: '#0369a1',
-              border: 'none',
-              padding: '10px 20px',
-              borderRadius: '25px',
-              fontWeight: 700,
-              fontSize: '12.5px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              boxShadow: '0 4px 6px rgba(0,0,0,0.08)',
-              transition: 'transform 0.2s',
-              outline: 'none'
-            }}
-          >
-            {autolocating ? '🛰️ Locating...' : '🛰️ Autolocate Me'}
-          </button>
-        </div>
 
-        {locationError && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', color: '#991b1b', padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '12.5px', fontWeight: 500 }}>
-            ⚠️ {locationError}
-          </div>
-        )}
 
         {/* Chat Balloon History */}
         <div style={{ flex: 1, overflowY: 'auto', paddingRight: '6px', marginBottom: '16px', minHeight: '350px', maxHeight: '550px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -641,8 +602,8 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
             <div key={index} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
               <div style={{
                 maxWidth: '85%',
-                background: msg.role === 'user' ? 'var(--blue)' : '#f8fafc',
-                color: msg.role === 'user' ? 'white' : '#0f172a',
+                background: msg.role === 'user' ? '#e0f2fe' : '#f8fafc',
+                color: msg.role === 'user' ? '#0369a1' : '#0f172a',
                 padding: '16px',
                 borderRadius: '16px',
                 borderTopRightRadius: msg.role === 'user' ? '4px' : '16px',
@@ -890,12 +851,96 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
           </div>
         </section>
 
-        <section className="wearable-card" style={{ padding: '20px', background: 'linear-gradient(135deg, #f7fbff 0%, #ffffff 100%)' }}>
-          <h4 style={{ margin: '0 0 8px', color: '#0369a1', fontSize: '14px' }}>Multilingual Nephrology Model</h4>
-          <p style={{ margin: 0, fontSize: '12px', color: '#38bdf8', lineHeight: 1.5 }}>
-            Our model has full RAG semantic guidelines querying and is dynamically optimized for 11 regional Indian languages to aid low-literacy or remote patients.
-          </p>
-        </section>
+        {/* Live Location Hospital Finder Widget Card */}
+        <div style={{ 
+          background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', 
+          color: '#0f172a', 
+          border: '1px solid #bae6fd',
+          padding: '16px 20px', 
+          borderRadius: '12px', 
+          boxShadow: '0 4px 12px rgba(3, 105, 161, 0.05)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ flex: 1, minWidth: '180px' }}>
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', color: '#0369a1' }}>
+                📍 Dialysis & Kidney Care Finder
+              </h3>
+              <p style={{ margin: '4px 0 0', fontSize: '12.5px', color: '#334155', opacity: 0.9 }}>
+                Share your location to instantly list kidney care centers and contact specialists near your live GPS coordinates.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleAutolocate}
+              disabled={autolocating}
+              style={{
+                background: '#0284c7',
+                color: 'white',
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: '25px',
+                fontWeight: 700,
+                fontSize: '12.5px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 4px 6px rgba(2, 132, 199, 0.15)',
+                transition: 'transform 0.2s',
+                outline: 'none'
+              }}
+            >
+              {autolocating ? '🛰️ Sharing...' : 'Share your location'}
+            </button>
+          </div>
+          
+          <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid #bae6fd', paddingTop: '12px' }}>
+            <input 
+              type="text" 
+              placeholder="Or enter your city manually (e.g. Mumbai, Delhi)..." 
+              value={locationInput}
+              onChange={e => setLocationInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleManualSearch(); } }}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                outline: 'none',
+                fontSize: '13px',
+                color: '#334155',
+                background: 'white'
+              }}
+            />
+            <button
+              type="button"
+              onClick={handleManualSearch}
+              disabled={!locationInput.trim()}
+              style={{
+                background: '#0284c7',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                fontWeight: 600,
+                fontSize: '13px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 4px rgba(2, 132, 199, 0.1)'
+              }}
+            >
+              Search
+            </button>
+          </div>
+        </div>
+
+        {locationError && (
+          <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', color: '#991b1b', padding: '10px 14px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 500 }}>
+            ⚠️ {locationError}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -2,6 +2,10 @@ import os
 import psycopg2
 import psycopg2.extras
 from typing import Any, Dict, List, Optional
+from dotenv import load_dotenv
+
+# Load env variables from .env file
+load_dotenv()
 
 # Register default JSONB adapter for automatic deserialization
 psycopg2.extras.register_default_jsonb()
@@ -9,10 +13,32 @@ psycopg2.extras.register_default_jsonb()
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://vimla@localhost:5432/tracker")
 
 def get_conn():
-    """Establish and return a new PostgreSQL connection."""
+    """Establish and return a new PostgreSQL connection. Creates the database if it doesn't exist."""
     try:
         return psycopg2.connect(DATABASE_URL)
-    except Exception as e:
+    except psycopg2.OperationalError as e:
+        err_str = str(e)
+        if "does not exist" in err_str or "3D000" in err_str:
+            try:
+                # Attempt to extract target dbname and base connection string
+                parts = DATABASE_URL.rsplit('/', 1)
+                base_url = parts[0]
+                target_db = parts[1].split('?')[0] # strip query parameters if any
+                
+                # Connect to maintenance database 'postgres' to run CREATE DATABASE
+                maintenance_url = f"{base_url}/postgres"
+                temp_conn = psycopg2.connect(maintenance_url)
+                temp_conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+                with temp_conn.cursor() as cur:
+                    cur.execute(f'CREATE DATABASE "{target_db}";')
+                temp_conn.close()
+                
+                # Re-try connecting to the newly created database
+                return psycopg2.connect(DATABASE_URL)
+            except Exception as create_exc:
+                print(f"Auto-database creation failed: {create_exc}")
+        
+        # Fallback to local default connection if URL fails
         if "localhost" in DATABASE_URL:
             try:
                 return psycopg2.connect(dbname=DATABASE_URL.split("/")[-1])
