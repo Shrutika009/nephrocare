@@ -75,6 +75,8 @@ class PrescriptionParser:
         "metformin", "insulin", "glimepiride", "sitagliptin",
         # Statins
         "atorvastatin", "rosuvastatin", "pravastatin",
+        # Antibiotics
+        "penicillin", "amoxicillin", "ciprofloxacin", "azithromycin", "cephalexin", "sulfamethoxazole",
         # Others
         "aspirin", "clopidogrel", "warfarin"
     }
@@ -162,7 +164,8 @@ class PrescriptionParser:
         medications = []
 
         for med_name in self.COMMON_MEDICATIONS:
-            pattern = rf"(?:take|prescribed?|given|using?|taking?|started?)\s+(?:on\s+)?(\w*\s*)?{med_name}"
+            # Just look for the medication name with word boundaries
+            pattern = rf"\b{med_name}\b"
 
             matches = re.finditer(pattern, transcript, re.IGNORECASE)
             for match in matches:

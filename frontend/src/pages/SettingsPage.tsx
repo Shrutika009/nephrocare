@@ -93,6 +93,30 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
   const [showPassword, setShowPassword] = useState(false)
   const [newPassword, setNewPassword] = useState('')
 
+  // Fetch profile from backend on mount
+  useEffect(() => {
+    const token = localStorage.getItem('auth_token')
+    if (user && token) {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+      fetch(`${apiUrl}/api/patient/profile`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && Object.keys(data).length > 0) {
+          setProfile(prev => {
+            const newProfile = { ...prev, ...data }
+            localStorage.setItem('nephrocare_profile', JSON.stringify(newProfile))
+            return newProfile
+          })
+        }
+      })
+      .catch(err => console.error('Failed to load profile from DB:', err))
+    }
+  }, [user])
+
   // Apply dark mode to document whenever it changes
   useEffect(() => {
     if (darkMode) {

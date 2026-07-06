@@ -1380,7 +1380,7 @@ export function DashboardPage({
       {/* Ultrasound observations detailed view Modal */}
       {isUsModalOpen && latestUltrasound && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
-          <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', maxWidth: '520px', width: '100%', padding: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', textAlign: 'left' }}>
+          <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', maxWidth: '520px', width: '100%', padding: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', textAlign: 'left', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '14px', marginBottom: '16px' }}>
               <h3 style={{ margin: 0, fontSize: '18px', color: '#083b66', fontWeight: 'bold' }}>Detailed Ultrasound Observations</h3>
               <button 
