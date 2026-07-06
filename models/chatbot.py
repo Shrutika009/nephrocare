@@ -893,8 +893,20 @@ REMINDER: Your ENTIRE response must be written in {language}. Not English. Not m
             MedicalResponse: Structured medical response
         """
         try:
+            # Parse coordinates before cleaning user_message
+            has_coords = False
+            lat_str, lng_str = "", ""
+            lat_lng_match = re.search(r"latitude:\s*(-?\d+\.\d+),\s*longitude:\s*(-?\d+\.\d+)", user_message.lower())
+            if lat_lng_match:
+                has_coords = True
+                lat_str = lat_lng_match.group(1)
+                lng_str = lat_lng_match.group(2)
+
+            # Clean user_message to prevent AI getting confused by coordinate arguments
+            clean_user_message = re.sub(r"\s*\(latitude:\s*-?\d+\.\d+,\s*longitude:\s*-?\d+\.\d+\)", "", user_message)
+
             # Emergency check
-            is_emergency, emergency_symptom = self.safety_layer.detect_emergency(user_message)
+            is_emergency, emergency_symptom = self.safety_layer.detect_emergency(clean_user_message)
             
             if is_emergency:
                 emergency_msg = self.safety_layer.generate_emergency_response(
@@ -911,7 +923,7 @@ REMINDER: Your ENTIRE response must be written in {language}. Not English. Not m
                 )
             
             # Detect and execute tool calls
-            tool_calls = self.detect_tool_calls(user_message)
+            tool_calls = self.detect_tool_calls(clean_user_message)
             tool_results = []
             for tool_name, kwargs in tool_calls:
                 result = self.call_tool(tool_name, **kwargs)
@@ -920,7 +932,7 @@ REMINDER: Your ENTIRE response must be written in {language}. Not English. Not m
             # Add to history
             self.conversation_history.append({
                 "role": "user",
-                "content": user_message
+                "content": clean_user_message
             })
             
             # Prepare message for Gemini — prepend hard language instruction to the user message
@@ -1004,14 +1016,10 @@ REMINDER: Your ENTIRE response must be written in {language}. Not English. Not m
             response_text = response.text
 
             
-            # Inject location finder if relevant keywords are present
-            query_lower = user_message.lower()
-            if any(kw in query_lower for kw in ["hospital", "clinic", "doctor", "nephrologist", "neurologist", "near me", "maps", "latitude"]):
-                # Parse coordinates if present
-                lat_lng_match = re.search(r"latitude:\s*(-?\d+\.\d+),\s*longitude:\s*(-?\d+\.\d+)", query_lower)
-                if lat_lng_match:
-                    lat_str = lat_lng_match.group(1)
-                    lng_str = lat_lng_match.group(2)
+            # Inject location finder if relevant keywords or coordinates are present
+            query_lower = clean_user_message.lower()
+            if has_coords or any(kw in query_lower for kw in ["hospital", "clinic", "doctor", "nephrologist", "neurologist", "near me", "maps"]):
+                if has_coords:
                     loc_suffix = f"near+{lat_str},{lng_str}"
                     loc_display = f"near coordinates ({lat_str}, {lng_str})"
                 else:

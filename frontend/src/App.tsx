@@ -520,7 +520,7 @@ function App() {
       user={user}
     />}
 
-    <Footer showPage={showPage} scrollTo={scrollTo} />
+    <Footer showPage={showPage} scrollTo={scrollTo} addToast={addToast} />
   </div>
 }
 
