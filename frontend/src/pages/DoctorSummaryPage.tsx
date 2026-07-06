@@ -65,7 +65,7 @@ export function DoctorSummaryPage({ showPage, user }: DoctorSummaryPageProps) {
         </div>
 
         {/* Patient Demographics Info Table */}
-        <div className="grid-2-col" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', marginBottom: '24px', gap: '20px', fontSize: '13px', lineHeight: 1.6  }}>
+        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', marginBottom: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', fontSize: '13px', lineHeight: 1.6 }}>
           <div>
             <div><strong>Patient Name:</strong> {user ? user.name : 'Anonymous'}</div>
             <div><strong>Age / Gender:</strong> {latestPrediction ? latestPrediction.age : '48'} Yrs / {latestPrediction ? (latestPrediction.sex === 'female' ? 'Female' : 'Male') : 'Female'}</div>
@@ -177,7 +177,7 @@ export function DoctorSummaryPage({ showPage, user }: DoctorSummaryPageProps) {
           </h2>
           {latestUltrasound ? (
             <div style={{ fontSize: '13px', lineHeight: 1.6 }}>
-              <div className="grid-3-col" style={{  gap: '16px', marginBottom: '14px', background: '#f8fafc', padding: '10px 14px', borderRadius: '6px', border: '1px solid #e2e8f0'  }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '14px', background: '#f8fafc', padding: '10px 14px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
                 <div><strong>Scan Date:</strong> {new Date(latestUltrasound.timestamp).toLocaleDateString()}</div>
                 <div><strong>Severity:</strong> <span style={{ fontWeight: 'bold', color: latestUltrasound.severity === 'High' ? 'var(--maroon)' : '#1e293b' }}>{latestUltrasound.severity}</span></div>
                 <div><strong>Scan Quality:</strong> {latestUltrasound.image_quality}</div>
@@ -225,7 +225,7 @@ export function DoctorSummaryPage({ showPage, user }: DoctorSummaryPageProps) {
         </div>
         
         {/* Lab Footer Sign-offs */}
-        <div className="grid-2-col" style={{ marginTop: '48px', paddingTop: '20px', borderTop: '2px solid #cbd5e1', fontSize: '11px', color: '#64748b', lineHeight: 1.5  }}>
+        <div style={{ marginTop: '48px', paddingTop: '20px', borderTop: '2px solid #cbd5e1', display: 'grid', gridTemplateColumns: '1fr 1fr', fontSize: '11px', color: '#64748b', lineHeight: 1.5 }}>
           <div>
             <strong>NephroCare Diagnostic Center</strong><br />
             NABL Certificate Number: MC-2947<br />

@@ -814,13 +814,13 @@ export function DashboardPage({
         </section>
 
         {/* 2. MAIN SPLIT GRID: LEFT (Risk, Stage, Labs) vs RIGHT (Big Ultrasound Diagnostic Scan Card) */}
-        <div className="grid-2-col-asym-wide" style={{ gap: '28px', marginBottom: '28px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1.2fr', gap: '28px', marginBottom: '28px' }}>
           
           {/* LEFT SUB-COLUMN: Risk, Stage, and Tabbed Labs */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
             
             {/* Risk and Stage Side-by-Side */}
-            <div className="grid-2-col" style={{ gap: '24px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
               
               {/* Card: AI Clinical Risk Assessment */}
               <div className="card-custom">
@@ -943,7 +943,7 @@ export function DashboardPage({
             </div>
 
             {/* Split row: Laboratory Values (narrower) & AI Meal Planner */}
-            <div className="grid-2-col-asym" style={{ gap: '24px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.05fr 0.95fr', gap: '24px' }}>
               
               {/* Card: Laboratory Values Dashboard */}
               <div className="card-custom">
@@ -1193,7 +1193,7 @@ export function DashboardPage({
                 )}
 
                 {/* Measurements and size indicators */}
-                <div className="grid-2-col" style={{  gap: '14px', background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0'  }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                   <div>
                     <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>KIDNEY LENGTH</span>
                     <span style={{ fontSize: '11.5px', color: '#334155', display: 'block', lineHeight: '1.4' }}>
