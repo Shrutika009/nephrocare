@@ -580,45 +580,52 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
       // verbs / common phrases
       'bata','bataiye','chahiye','karo','hoga','samjhao','batao','dijiye',
       'karein','sakte','sakti','milega','hota','hoti','karta','karti',
-      // kidney / medical (Hindi transliteration)
-      'kidney','gurdey','dawai','goli','dard','bukhar','doctor','stage',
-      'ckd','ilaj','bimari','sehat','dawa','upay',
+      // medical (Hindi transliteration) - NO English words here
+      'gurdey','dawai','goli','dard','bukhar','ilaj','bimari','sehat','dawa','upay',
     ],
     ta: [
       'enna','eppadi','yenna','vanakkam','nandri','romba','illai','aam',
       'sollunga','puriyala','seivathu','eppothu','yaar','enga','epdi',
+      'naan','enakku','neenga','ungalukku','marundhu','vali'
     ],
     te: [
       'emiti','ela','meeru','naku','cheppandi','antaru','ledu','avunu',
       'cheyandi','emi','endi','mari','okavela','chestanu',
+      'nenu','miku','bagunda','mandulu','nopi'
     ],
     kn: [
       'yaake','hege','illa','beku','ide','hagide','nimma','nanu','avaru',
       'eno','yaru','yelli','helri','madri','madbeku',
+      'nanna','nimage','oushadhi','novu'
     ],
     ml: [
       'enthu','evide','undo','alla','aayi','nanni','paranjal','enganey',
       'parayamo','ulla','tharam','venam','illatha',
+      'njan','ningal','marunnu','vedana'
     ],
     mr: [
       'kay','ahe','nahi','mazhe','tumhi','mala','kasa','kiti','kadhi',
       'kuthe','karun','sangal','dyave','milel','aahe',
+      'mi','aapan','aushadh','dukhne'
     ],
     gu: [
       'shu','chhe','nathi','maro','tamaro','ane','che','ketlu','kyare',
       'kya','tame','hoon','karje','aavjo',
+      'mane','dava','dukhavo'
     ],
     bn: [
       'ki','ache','nei','amar','tomar','kemon','kothay','kobe','keno',
       'bolo','korte','hobe','jano','dekho',
+      'ami','apni','oshudh','byatha'
     ],
     pa: [
       'ki','hai','nahin','mera','tera','tusi','main','assi','kyon',
       'kive','kiddan','dasso','karo','hoga','sahi',
+      'sancho','dawai','dard'
     ],
     ur: [
       'kya','hai','hain','mujhe','nahi','aap','mere','chahiye',
-      'batayein','theek','dawa','ilaj','kidney','marz',
+      'batayein','theek','dawa','ilaj','marz',
     ],
   }
 

@@ -1195,24 +1195,16 @@ export function DashboardPage({
                 {/* Measurements and size indicators */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                   <div>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', display: 'block' }}>KIDNEY LENGTH</span>
-                    <strong style={{ fontSize: '16px', color: '#0f172a' }}>{latestUltrasound.kidney_size_mm || '--'} mm</strong>
-                    <span style={{ fontSize: '10px', color: '#64748b', display: 'block', marginTop: '4px', lineHeight: '1.3' }}>
-                      Normal: 100 - 120 mm. Measures physical longitudinal length; shrinkage below 90 mm indicates kidney atrophy or scarring.
+                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>KIDNEY LENGTH</span>
+                    <span style={{ fontSize: '11.5px', color: '#334155', display: 'block', lineHeight: '1.4' }}>
+                      Normal range is <strong>100 - 120 mm</strong>. Shrinkage below 90 mm indicates kidney atrophy or scarring.
                     </span>
-                    <div className="custom-prog-bar" style={{ height: '4px', marginTop: '6px' }}>
-                      <div className="custom-prog-fill" style={{ width: `${getProgressPercent(latestUltrasound.kidney_size_mm || 100, 100, 120)}%`, background: '#083b66' }} />
-                    </div>
                   </div>
                   <div>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', display: 'block' }}>CORTEX THICKNESS</span>
-                    <strong style={{ fontSize: '16px', color: '#0f172a' }}>{latestUltrasound.cortical_thickness_mm || '--'} mm</strong>
-                    <span style={{ fontSize: '10px', color: '#64748b', display: 'block', marginTop: '4px', lineHeight: '1.3' }}>
-                      Normal: 15 - 25 mm. Measures the outer filtration boundary; thinning below 10 mm indicates nephron loss and damage.
+                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>CORTEX THICKNESS</span>
+                    <span style={{ fontSize: '11.5px', color: '#334155', display: 'block', lineHeight: '1.4' }}>
+                      Normal range is <strong>15 - 25 mm</strong>. Thinning below 10 mm indicates nephron loss and chronic damage.
                     </span>
-                    <div className="custom-prog-bar" style={{ height: '4px', marginTop: '6px' }}>
-                      <div className="custom-prog-fill" style={{ width: `${getProgressPercent(latestUltrasound.cortical_thickness_mm || 15, 15, 25)}%`, background: '#083b66' }} />
-                    </div>
                   </div>
                 </div>
 
