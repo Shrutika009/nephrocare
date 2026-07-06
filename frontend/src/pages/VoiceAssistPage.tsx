@@ -130,11 +130,10 @@ export function VoiceAssistPage({ showPage, user }: VoiceAssistPageProps) {
   }
 
   const simulateRecording = () => {
-    // Generate a dummy audio file for testing
-    const dummyBlob = new Blob([new Uint8Array(1000)], { type: 'audio/wav' })
-    const file = new File([dummyBlob], 'prescription_simulated.wav', { type: 'audio/wav' })
-    setAudioFile(file)
-    analyzeAudio(file)
+    setError('Microphone not detected or permission denied. Please upload an audio file instead.')
+    setRecording(false)
+    setRecordingTime(0)
+    if (timerRef.current) clearInterval(timerRef.current)
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

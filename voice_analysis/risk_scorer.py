@@ -26,6 +26,16 @@ class RiskScorer:
         }
         """
         labs = labs or {}
+        
+        if not medications and not nutrients:
+            return {
+                "score": 0.0,
+                "category": "low",
+                "factors": [],
+                "critical_count": 0,
+                "summary": "No prescription items detected."
+            }
+            
         score = 50  # baseline
         factors = []
         critical_count = 0

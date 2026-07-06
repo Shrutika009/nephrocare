@@ -971,15 +971,38 @@ REMINDER: Your ENTIRE response must be written in {language}. Not English. Not m
                     )
                 )
 
-            response = self.client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=formatted_contents,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_prompt
-                )
-            )
-            
+            # Model fallback chain: try newer models first, fall back on 503/overload
+            import time as _time
+            MODELS_TO_TRY = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+            response = None
+            for model_name in MODELS_TO_TRY:
+                for attempt in range(2):  # 2 attempts per model
+                    try:
+                        response = self.client.models.generate_content(
+                            model=model_name,
+                            contents=formatted_contents,
+                            config=types.GenerateContentConfig(
+                                system_instruction=system_prompt
+                            )
+                        )
+                        break  # success
+                    except Exception as _me:
+                        err = str(_me).lower()
+                        is_overload = any(x in err for x in ['503', 'unavailable', 'resource_exhausted', 'overloaded', 'high demand'])
+                        if is_overload and attempt == 0:
+                            _time.sleep(2 ** attempt)  # 2s backoff
+                            continue
+                        if is_overload:
+                            break  # try next model
+                        raise  # non-overload error — propagate immediately
+                if response is not None:
+                    break
+
+            if response is None:
+                raise RuntimeError("All Gemini models are currently overloaded. Please try again in a minute.")
+
             response_text = response.text
+
             
             # Inject location finder if relevant keywords are present
             query_lower = user_message.lower()
@@ -1042,14 +1065,8 @@ REMINDER: Your ENTIRE response must be written in {language}. Not English. Not m
             return structured_response
         
         except Exception as e:
-            return MedicalResponse(
-                assessment=f"Error processing request: {str(e)}",
-                explanation="",
-                educational_information="Please try again or consult your nephrologist.",
-                kidney_specific_guidance="",
-                questions_for_nephrologist=[],
-                emergency_detected=False
-            )
+            # Re-raise so the API layer can handle 503 overloads and other errors properly
+            raise e
     
     def _parse_medical_response(self, response_text: str, 
                                 tool_results: List[str]) -> MedicalResponse:

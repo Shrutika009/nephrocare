@@ -2175,8 +2175,28 @@ class Handler(BaseHTTPRequestHandler):
                         for h in history_data
                     ]
 
-                # Run chat
-                response = chatbot.chat(user_message)
+                # Run chat — retry up to 3 times on 503 / overload errors
+                import time as _time
+                response = None
+                last_error = None
+                for attempt in range(3):
+                    try:
+                        response = chatbot.chat(user_message)
+                        break  # success
+                    except Exception as e:
+                        err_str = str(e).lower()
+                        is_overload = (
+                            '503' in err_str or
+                            'unavailable' in err_str or
+                            'resource_exhausted' in err_str or
+                            'overloaded' in err_str or
+                            'high demand' in err_str
+                        )
+                        last_error = e
+                        if is_overload and attempt < 2:
+                            _time.sleep(2)  # wait 2s before retrying
+                            continue
+                        raise  # re-raise if not overload or last attempt
 
                 self.respond(200, {
                     "assessment": response.assessment,
@@ -2190,7 +2210,16 @@ class Handler(BaseHTTPRequestHandler):
                     "confidence_score": response.confidence_score
                 })
             except Exception as exc:
-                self.respond(500, {"error": f"Chatbot execution failed: {str(exc)}"})
+                err_str = str(exc).lower()
+                is_overload = (
+                    '503' in err_str or 'unavailable' in err_str or
+                    'resource_exhausted' in err_str or 'overloaded' in err_str or
+                    'high demand' in err_str
+                )
+                if is_overload:
+                    self.respond(503, {"error": "overload"})
+                else:
+                    self.respond(500, {"error": f"Chatbot execution failed: {str(exc)}"})
             return
 
         if self.path == "/api/predict-stage":

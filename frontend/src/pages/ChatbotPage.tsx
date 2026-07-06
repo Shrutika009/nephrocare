@@ -392,6 +392,92 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
   const [loading, setLoading] = useState(false)
   const [selectedLang, setSelectedLang] = useState(savedLang)
 
+  // Voice-to-text state
+  const [isListening, setIsListening] = useState(false)
+  const [voiceError, setVoiceError] = useState<string | null>(null)
+  const recognitionRef = useRef<any>(null)
+
+  const LANG_TO_BCP47: Record<string, string> = {
+    en: 'en-IN', hi: 'hi-IN', ta: 'ta-IN', te: 'te-IN',
+    kn: 'kn-IN', ml: 'ml-IN', mr: 'mr-IN', gu: 'gu-IN',
+    bn: 'bn-IN', pa: 'pa-IN', ur: 'ur-IN'
+  }
+
+  const startListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      setVoiceError('Voice input is not supported in this browser. Try Chrome or Edge.')
+      return
+    }
+    setVoiceError(null)
+    const recognition = new SpeechRecognition()
+    recognition.lang = LANG_TO_BCP47[selectedLang] || 'en-IN'
+    recognition.interimResults = true
+    recognition.maxAlternatives = 1
+    recognition.continuous = false
+
+    recognition.onstart = () => setIsListening(true)
+    recognition.onend = () => { setIsListening(false); recognitionRef.current = null }
+    recognition.onerror = (e: any) => {
+      setIsListening(false)
+      recognitionRef.current = null
+      if (e.error !== 'aborted') {
+        setVoiceError(e.error === 'not-allowed'
+          ? 'Microphone access denied. Please allow microphone in browser settings.'
+          : `Voice error: ${e.error}`
+        )
+      }
+    }
+    recognition.onresult = (e: any) => {
+      const transcript = Array.from(e.results)
+        .map((r: any) => r[0].transcript)
+        .join('')
+      setInput(transcript)
+      if (e.results[e.results.length - 1].isFinal) {
+        recognition.stop()
+        // Auto-detect language from the spoken transcript
+        // and switch the language selector so the next mic session
+        // and the API call both use the correct language
+        const spoken = transcript.trim()
+        if (spoken) {
+          // We cannot call detectLangFromText here (it closes over selectedLang at call time),
+          // so inline the same logic
+          const counts: Record<string, number> = {}
+          for (const ch of spoken) {
+            const c = ch.codePointAt(0) ?? 0
+            if      (c >= 0x0900 && c <= 0x097F) counts.hi  = (counts.hi  || 0) + 1
+            else if (c >= 0x0B80 && c <= 0x0BFF) counts.ta  = (counts.ta  || 0) + 1
+            else if (c >= 0x0C00 && c <= 0x0C7F) counts.te  = (counts.te  || 0) + 1
+            else if (c >= 0x0C80 && c <= 0x0CFF) counts.kn  = (counts.kn  || 0) + 1
+            else if (c >= 0x0D00 && c <= 0x0D7F) counts.ml  = (counts.ml  || 0) + 1
+            else if (c >= 0x0A80 && c <= 0x0AFF) counts.gu  = (counts.gu  || 0) + 1
+            else if (c >= 0x0980 && c <= 0x09FF) counts.bn  = (counts.bn  || 0) + 1
+            else if (c >= 0x0A00 && c <= 0x0A7F) counts.pa  = (counts.pa  || 0) + 1
+            else if (c >= 0x0600 && c <= 0x06FF) counts.ur  = (counts.ur  || 0) + 1
+          }
+          let best = '', max = 0
+          for (const [lang, cnt] of Object.entries(counts)) {
+            if (cnt > max) { max = cnt; best = lang }
+          }
+          if (max >= 2 && best) {
+            setSelectedLang(best)
+            localStorage.setItem('nephrocare_language', best)
+          }
+        }
+      }
+    }
+
+    recognitionRef.current = recognition
+    recognition.start()
+  }
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop()
+    }
+    setIsListening(false)
+  }
+
   // Reset chat with translated welcome when language changes
   const handleLangChange = (lang: string) => {
     setSelectedLang(lang)
@@ -443,7 +529,10 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
         const lng = position.coords.longitude
         console.log(`Successfully located user: lat=${lat}, lng=${lng}`)
         setAutolocating(false)
-        handleSendMessage(`Show kidney care hospitals and nephrologists near my location (latitude: ${lat.toFixed(4)}, longitude: ${lng.toFixed(4)})`)
+        handleSendMessage(
+          "Show kidney care hospitals and nephrologists near my location.",
+          `Show kidney care hospitals and nephrologists near my location (latitude: ${lat.toFixed(4)}, longitude: ${lng.toFixed(4)})`
+        )
       },
       (error) => {
         console.error("Geolocation request failed:", error)
@@ -479,8 +568,116 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
 
-  const handleSendMessage = async (textToSend: string) => {
+  // ─── Romanized keyword banks per language ───────────────────────────────
+  const ROMANIZED_KEYWORDS: Record<string, string[]> = {
+    hi: [
+      // core grammar words
+      'kya','hai','hain','hoon','tha','thi','the','nahi','nahin',
+      'mujhe','mera','meri','mere','aap','tum','main','hum','unka','uska',
+      'yeh','woh','iska','inka',
+      // question words
+      'kaise','kyun','kyunki','kab','kahan','kitna','kaun','kaunsa',
+      // verbs / common phrases
+      'bata','bataiye','chahiye','karo','hoga','samjhao','batao','dijiye',
+      'karein','sakte','sakti','milega','hota','hoti','karta','karti',
+      // kidney / medical (Hindi transliteration)
+      'kidney','gurdey','dawai','goli','dard','bukhar','doctor','stage',
+      'ckd','ilaj','bimari','sehat','dawa','upay',
+    ],
+    ta: [
+      'enna','eppadi','yenna','vanakkam','nandri','romba','illai','aam',
+      'sollunga','puriyala','seivathu','eppothu','yaar','enga','epdi',
+    ],
+    te: [
+      'emiti','ela','meeru','naku','cheppandi','antaru','ledu','avunu',
+      'cheyandi','emi','endi','mari','okavela','chestanu',
+    ],
+    kn: [
+      'yaake','hege','illa','beku','ide','hagide','nimma','nanu','avaru',
+      'eno','yaru','yelli','helri','madri','madbeku',
+    ],
+    ml: [
+      'enthu','evide','undo','alla','aayi','nanni','paranjal','enganey',
+      'parayamo','ulla','tharam','venam','illatha',
+    ],
+    mr: [
+      'kay','ahe','nahi','mazhe','tumhi','mala','kasa','kiti','kadhi',
+      'kuthe','karun','sangal','dyave','milel','aahe',
+    ],
+    gu: [
+      'shu','chhe','nathi','maro','tamaro','ane','che','ketlu','kyare',
+      'kya','tame','hoon','karje','aavjo',
+    ],
+    bn: [
+      'ki','ache','nei','amar','tomar','kemon','kothay','kobe','keno',
+      'bolo','korte','hobe','jano','dekho',
+    ],
+    pa: [
+      'ki','hai','nahin','mera','tera','tusi','main','assi','kyon',
+      'kive','kiddan','dasso','karo','hoga','sahi',
+    ],
+    ur: [
+      'kya','hai','hain','mujhe','nahi','aap','mere','chahiye',
+      'batayein','theek','dawa','ilaj','kidney','marz',
+    ],
+  }
+
+  /**
+   * Step 1 – Unicode script detection (fast, high confidence).
+   * Step 2 – Romanized keyword matching as fallback (handles transliterated text).
+   */
+  const detectLangFromText = (text: string): string => {
+    // ── STEP 1: Unicode script ranges ──────────────────────────────────
+    const counts: Record<string, number> = {}
+    for (const ch of text) {
+      const c = ch.codePointAt(0) ?? 0
+      if      (c >= 0x0900 && c <= 0x097F) counts.hi  = (counts.hi  || 0) + 1
+      else if (c >= 0x0B80 && c <= 0x0BFF) counts.ta  = (counts.ta  || 0) + 1
+      else if (c >= 0x0C00 && c <= 0x0C7F) counts.te  = (counts.te  || 0) + 1
+      else if (c >= 0x0C80 && c <= 0x0CFF) counts.kn  = (counts.kn  || 0) + 1
+      else if (c >= 0x0D00 && c <= 0x0D7F) counts.ml  = (counts.ml  || 0) + 1
+      else if (c >= 0x0A80 && c <= 0x0AFF) counts.gu  = (counts.gu  || 0) + 1
+      else if (c >= 0x0980 && c <= 0x09FF) counts.bn  = (counts.bn  || 0) + 1
+      else if (c >= 0x0A00 && c <= 0x0A7F) counts.pa  = (counts.pa  || 0) + 1
+      else if (c >= 0x0600 && c <= 0x06FF) counts.ur  = (counts.ur  || 0) + 1
+    }
+    let best = '', max = 0
+    for (const [lang, cnt] of Object.entries(counts)) {
+      if (cnt > max) { max = cnt; best = lang }
+    }
+    if (max >= 2) {
+      if (best === 'hi' && selectedLang === 'mr') return 'mr'
+      return best
+    }
+
+    // ── STEP 2: Romanized keyword matching ─────────────────────────────
+    const words = text.toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/)
+    const scores: Record<string, number> = {}
+    for (const [lang, keywords] of Object.entries(ROMANIZED_KEYWORDS)) {
+      for (const word of words) {
+        if (word.length > 1 && keywords.includes(word)) {
+          scores[lang] = (scores[lang] || 0) + 1
+        }
+      }
+    }
+    let rBest = '', rMax = 0
+    for (const [lang, score] of Object.entries(scores)) {
+      if (score > rMax) { rMax = score; rBest = lang }
+    }
+    // Require at least 1 keyword hit to switch language
+    return rMax >= 1 ? rBest : ''
+  }
+
+  const handleSendMessage = async (textToSend: string, backendText?: string) => {
     if (!textToSend.trim() || loading) return
+
+    // Auto-detect the language script used in the message
+    const autoLang = detectLangFromText(textToSend)
+    const langToUse = autoLang || selectedLang
+    if (autoLang && autoLang !== selectedLang) {
+      setSelectedLang(autoLang)
+      localStorage.setItem('nephrocare_language', autoLang)
+    }
 
     const userMsg: Message = {
       role: 'user',
@@ -516,14 +713,18 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: textToSend,
-          language: selectedLang,
+          message: backendText || textToSend,
+          language: langToUse,
           history: history,
           patient_context: patientContext
         })
       })
 
       if (!response.ok) {
+        const errData = await response.json().catch(() => ({}))
+        if (response.status === 503 || errData.error === 'overload') {
+          throw new Error('__overload__')
+        }
         throw new Error('API server returned an error.')
       }
 
@@ -543,11 +744,14 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
       }
 
       setMessages(prev => [...prev, assistantMsg])
-    } catch (error) {
+    } catch (error: any) {
       console.error(error)
+      const isOverload = error?.message === '__overload__'
       const errorMsg: Message = {
         role: 'assistant',
-        content: 'I apologize, but I encountered an error communicating with the AI server. Please make sure the backend server is running and try again.',
+        content: isOverload
+          ? '⏳ The AI assistant is currently busy due to high traffic. Please wait a moment and try again — your question has not been lost!'
+          : '⚠️ Something went wrong connecting to the assistant. Please check your connection and try again.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }
       setMessages(prev => [...prev, errorMsg])
@@ -674,9 +878,10 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
           {/* Typing Indicator */}
           {loading && (
             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-              <div style={{ background: '#f1f5f9', padding: '12px 18px', borderRadius: '16px', border: '1px solid #e2e8f0', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
-                <span className="pulsing-kidney" style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--blue)', display: 'inline-block' }} />
-                AI is compiling guidelines context...
+              <div style={{ background: '#f1f5f9', padding: '12px 18px', borderRadius: '16px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#94a3b8', display: 'inline-block', animation: 'typingDot 1.2s ease-in-out infinite', animationDelay: '0s' }} />
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#94a3b8', display: 'inline-block', animation: 'typingDot 1.2s ease-in-out infinite', animationDelay: '0.2s' }} />
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#94a3b8', display: 'inline-block', animation: 'typingDot 1.2s ease-in-out infinite', animationDelay: '0.4s' }} />
               </div>
             </div>
           )}
@@ -709,22 +914,70 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
         </div>
 
         {/* Input box */}
+        {voiceError && (
+          <div style={{ marginBottom: '8px', padding: '8px 12px', background: '#fee2e2', borderRadius: '8px', fontSize: '12.5px', color: '#dc2626', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>{voiceError}</span>
+            <button onClick={() => setVoiceError(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontWeight: 700, fontSize: '14px', lineHeight: 1 }}>✕</button>
+          </div>
+        )}
         <form onSubmit={e => { e.preventDefault(); handleSendMessage(input) }} style={{ display: 'flex', gap: '10px' }}>
-          <input
-            type="text"
-            value={input}
-            disabled={loading}
-            onChange={e => setInput(e.target.value)}
-            placeholder="Ask about guidelines, potassium levels, drug safety, stage details..."
-            style={{
-              flex: 1,
-              padding: '12px 16px',
-              borderRadius: '10px',
-              border: '1px solid #cbd5e1',
-              fontSize: '14px',
-              outline: 'none'
-            }}
-          />
+          <div style={{ position: 'relative', flex: 1 }}>
+            <input
+              type="text"
+              value={input}
+              disabled={loading}
+              onChange={e => setInput(e.target.value)}
+              placeholder={isListening ? 'Listening... speak now' : 'Ask about guidelines, potassium levels, drug safety, stage details...'}
+              style={{
+                width: '100%',
+                padding: '12px 50px 12px 16px',
+                borderRadius: '10px',
+                border: isListening ? '2px solid #ef4444' : '1px solid #cbd5e1',
+                fontSize: '14px',
+                outline: 'none',
+                boxSizing: 'border-box',
+                transition: 'border-color 0.2s'
+              }}
+            />
+            {/* Mic button inside input */}
+            <button
+              type="button"
+              title={isListening ? 'Stop listening' : `Voice input (${LANG_TO_BCP47[selectedLang] || 'en-IN'})`}
+              onClick={isListening ? stopListening : startListening}
+              disabled={loading}
+              style={{
+                position: 'absolute',
+                right: '10px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: isListening ? '#ef4444' : 'transparent',
+                border: isListening ? 'none' : '1px solid #cbd5e1',
+                borderRadius: '8px',
+                padding: '5px 7px',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: isListening ? 'white' : '#475569',
+                transition: 'all 0.2s',
+                boxShadow: isListening ? '0 0 0 4px rgba(239,68,68,0.2)' : 'none',
+                animation: isListening ? 'micPulse 1s ease-in-out infinite' : 'none'
+              }}
+            >
+              {isListening ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                  <line x1="12" y1="19" x2="12" y2="23"/>
+                  <line x1="8" y1="23" x2="16" y2="23"/>
+                </svg>
+              )}
+            </button>
+          </div>
           <button
             type="submit"
             disabled={loading || !input.trim()}
