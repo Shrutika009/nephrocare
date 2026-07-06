@@ -97,6 +97,22 @@ type DashboardPageProps = {
   addToast: (type: ToastType, title: string, message: string, action?: { label: string; url: string }) => void
 }
 
+function getRelativeTime(dateString: string) {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  
+  if (diffInSeconds < 60) return 'Just now';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} min ago`;
+  if (diffInSeconds < 86400) {
+    const hours = Math.floor(diffInSeconds / 3600);
+    return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  }
+  if (diffInSeconds < 172800) return 'Yesterday';
+  
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 export function DashboardPage({ 
   user, 
   showPage, 
@@ -770,7 +786,7 @@ export function DashboardPage({
             <div>
               <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', display: 'block', textTransform: 'uppercase' }}>Last Assessed</span>
               <strong style={{ fontSize: '13px', color: '#475569', display: 'block', marginTop: '2px' }}>
-                {latestPrediction ? new Date(latestPrediction.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}
+                {latestPrediction ? getRelativeTime(latestPrediction.timestamp) : 'N/A'}
               </strong>
               <span style={{ fontSize: '9px', color: '#64748b', display: 'block' }}>View History</span>
             </div>
@@ -1386,7 +1402,7 @@ export function DashboardPage({
               <button 
                 type="button" 
                 onClick={() => setIsUsModalOpen(false)}
-                style={{ background: 'transparent', border: 'none', fontSize: '20px', color: '#94a3b8', cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', fontSize: '24px', fontWeight: 'bold', color: '#ef4444', cursor: 'pointer', padding: '0 8px', marginTop: '-4px' }}
               >
                 ×
               </button>
@@ -1394,8 +1410,12 @@ export function DashboardPage({
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '14px', color: '#334155' }}>
               <div><strong>Scan Severity Rating:</strong> {latestUltrasound.severity}</div>
-              <div><strong>Kidney Size:</strong> {latestUltrasound.kidney_size_mm || '--'} mm</div>
-              <div><strong>Cortical Thickness:</strong> {latestUltrasound.cortical_thickness_mm || '--'} mm</div>
+              {latestUltrasound.kidney_size_mm && (
+                <div><strong>Kidney Size:</strong> {latestUltrasound.kidney_size_mm} mm</div>
+              )}
+              {latestUltrasound.cortical_thickness_mm && (
+                <div><strong>Cortical Thickness:</strong> {latestUltrasound.cortical_thickness_mm} mm</div>
+              )}
               <div><strong>Image Capture Quality:</strong> {latestUltrasound.image_quality}</div>
               
               <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>

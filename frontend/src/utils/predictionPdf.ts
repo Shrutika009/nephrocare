@@ -54,7 +54,7 @@ function createPdfBlob(pages: string[]) {
   return new Blob([pdf], { type: 'application/pdf' })
 }
 
-function buildPredictionPdf(result: PredictionResult): Blob {
+function buildPredictionPdf(result: PredictionResult, userName: string): Blob {
   const now = new Date()
   const report = reportData(result)
   const page: string[] = []
@@ -65,7 +65,7 @@ function buildPredictionPdf(result: PredictionResult): Blob {
   const softBlue = '0.86 0.93 0.98'
   const softRose = '0.98 0.87 0.91'
   
-  const patientName = 'Vimla Choudhary'
+  const patientName = userName
   const patientAge = formatValue(result.input.age)
   const patientSex = result.input.sex === 'female' ? 'Female' : 'Male'
   const labRefId = `NC-${Math.floor(10000 + Math.random() * 90000)}`
@@ -165,12 +165,14 @@ function buildPredictionPdf(result: PredictionResult): Blob {
   return createPdfBlob([page.join('\n')])
 }
 
-export function downloadPredictionPdf(result: PredictionResult) {
-  const blob = buildPredictionPdf(result)
-  const now = new Date()
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `nephrocare-ckd-risk-${now.toISOString().slice(0, 10)}.pdf`
-  link.click()
-  URL.revokeObjectURL(link.href)
+export function downloadPredictionPdf(result: PredictionResult, userName: string = 'Anonymous') {
+  const blob = buildPredictionPdf(result, userName)
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `nephrocare-ckd-risk-${new Date().toISOString().split('T')[0]}.pdf`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }

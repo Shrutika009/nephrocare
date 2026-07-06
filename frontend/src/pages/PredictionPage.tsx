@@ -24,6 +24,7 @@ type PredictionPageProps = {
   updateNumber: (key: keyof PredictionForm, value: string) => void
   updateChoice: (key: keyof PredictionForm, value: string) => void
   resetPrediction: () => void
+  user?: { name: string; email: string; avatar?: string } | null
 }
 
 const labInputs: [keyof PredictionForm, string, string][] = [
@@ -52,22 +53,8 @@ export function PredictionPage(props: PredictionPageProps) {
   </main>
 }
 
-function PredictionResultView({ result, activeReport, setPredictionStep, showPage }: PredictionPageProps & { result: PredictionResult; activeReport: ActiveReport }) {
-  const [userName, setUserName] = useState('Vimla Choudhary')
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('nephrocare_user') || localStorage.getItem('user')
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        if (parsed && parsed.name) {
-          setUserName(parsed.name)
-        }
-      }
-    } catch (e) {
-      console.error(e)
-    }
-  }, [])
+function PredictionResultView({ result, activeReport, setPredictionStep, showPage, user }: PredictionPageProps & { result: PredictionResult; activeReport: ActiveReport }) {
+  const userName = user?.name || 'Anonymous'
 
   const [stageResult, setStageResult] = useState<StageProgressionResult | null>(null)
   const [stageLoading, setStageLoading] = useState(false)
@@ -114,7 +101,7 @@ function PredictionResultView({ result, activeReport, setPredictionStep, showPag
     <section className="result-hero" style={{ marginBottom: '20px' }}>
       <button className="back-button" onClick={() => setPredictionStep('calculator')}><Icon name="arrow" size={16} /> Back</button>
       <div className="result-actions">
-        <button type="button" onClick={() => downloadPredictionPdf(result)}><Icon name="report" size={17} /> Download PDF</button>
+        <button type="button" onClick={() => downloadPredictionPdf(result, userName)}><Icon name="report" size={17} /> Download PDF</button>
         <button type="button" onClick={() => showPage('home')}>Back home</button>
       </div>
     </section>

@@ -517,6 +517,7 @@ function App() {
       updateNumber={updateNumber}
       updateChoice={updateChoice}
       resetPrediction={resetPrediction}
+      user={user}
     />}
 
     <Footer showPage={showPage} scrollTo={scrollTo} />

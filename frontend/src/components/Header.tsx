@@ -2,6 +2,21 @@ import { useState, useEffect, useRef } from 'react'
 import { features } from '../constants'
 import type { Page } from '../types'
 import { Icon } from './Icon'
+import { Globe, ChevronDown } from 'lucide-react'
+
+const LANGUAGES: Record<string, string> = {
+  'en': 'EN',
+  'hi': 'हिन्दी',
+  'ta': 'தமிழ்',
+  'te': 'తెలుగు',
+  'kn': 'ಕನ್ನಡ',
+  'ml': 'മലയാളം',
+  'mr': 'मराठी',
+  'gu': 'ગુજરાતી',
+  'bn': 'বাংলা',
+  'pa': 'ਪੰਜਾਬੀ',
+  'ur': 'اردو',
+};
 
 type HeaderProps = {
   mobileOpen: boolean
@@ -17,14 +32,58 @@ type HeaderProps = {
 
 export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpen, showPage, scrollTo, closeMenus, user, onLogout }: HeaderProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [langMenuOpen, setLangMenuOpen] = useState(false)
+  const [language, setLanguage] = useState(() => localStorage.getItem('nephrocare_language') || 'en')
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const langDropdownRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLElement>(null)
+
+  const handleLanguageChange = async (newLang: string) => {
+    setLanguage(newLang)
+    localStorage.setItem('nephrocare_language', newLang)
+    
+    const target = `/en/${newLang}`;
+    const match = document.cookie.match(/googtrans=([^;]+)/);
+    const current = match ? match[1] : '';
+    
+    let needsReload = false;
+    if (newLang === 'en' && current && current !== '/en/en') {
+      document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; domain=" + window.location.hostname + "; path=/;";
+      needsReload = true;
+    } else if (newLang !== 'en' && current !== target) {
+      document.cookie = `googtrans=${target}; path=/`;
+      document.cookie = `googtrans=${target}; domain=${window.location.hostname}; path=/`;
+      needsReload = true;
+    }
+
+    if (user && needsReload) {
+      try {
+        const token = localStorage.getItem('auth_token')
+        if (token) {
+          const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+          const res = await fetch(`${apiUrl}/api/patient/profile`, { headers: { 'Authorization': `Bearer ${token}` } })
+          const profile = await res.json()
+          await fetch(`${apiUrl}/api/patient/profile`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ ...profile, preferences: { ...(profile.preferences || {}), language: newLang } })
+          })
+        }
+      } catch (err) { console.error(err) }
+    }
+    
+    if (needsReload) window.location.reload()
+  }
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       // Close user dropdown when clicking outside it
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setUserMenuOpen(false)
+      }
+      if (langDropdownRef.current && !langDropdownRef.current.contains(event.target as Node)) {
+        setLangMenuOpen(false)
       }
       // Close features mega-menu when clicking outside the entire header
       if (headerRef.current && !headerRef.current.contains(event.target as Node)) {
@@ -90,15 +149,64 @@ export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpe
           <button type="button" className="signup-button" onClick={() => showPage('login')}>Login / Sign up</button>
         </>
       )}
-      <button
-        className="header-settings-btn"
-        onClick={() => showPage('settings')}
-        title="Settings"
-        aria-label="Open Settings"
-        style={{ marginLeft: '12px' }}
-      >
-        <Icon name="settings" size={18} />
-      </button>
+      <div className="lang-dropdown-container" ref={langDropdownRef} style={{ position: 'relative', marginLeft: '12px' }}>
+        <button 
+          onClick={() => setLangMenuOpen(!langMenuOpen)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '6px 12px',
+            borderRadius: '20px',
+            border: '1px solid #E2E8F0',
+            background: '#F8FAFC',
+            fontSize: '13px',
+            fontWeight: 500,
+            color: '#334155',
+            cursor: 'pointer',
+          }}
+        >
+          <Globe size={16} />
+          {LANGUAGES[language] || 'EN'}
+          <ChevronDown size={14} style={{ opacity: 0.7, transform: langMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+        </button>
+        
+        {langMenuOpen && (
+          <div className="lang-dropdown-menu" style={{
+            position: 'absolute', top: 'calc(100% + 4px)', right: 0,
+            background: 'white', borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)', border: '1px solid #E2E8F0',
+            minWidth: '120px', padding: '6px', zIndex: 100,
+            display: 'flex', flexDirection: 'column', gap: '2px',
+            maxHeight: '300px', overflowY: 'auto'
+          }}>
+            {Object.entries(LANGUAGES).map(([code, name]) => (
+              <button
+                key={code}
+                onClick={() => {
+                  setLangMenuOpen(false);
+                  if (code !== language) handleLanguageChange(code);
+                }}
+                style={{
+                  textAlign: 'left', padding: '8px 12px',
+                  background: code === language ? '#F1F5F9' : 'transparent',
+                  border: 'none', borderRadius: '6px',
+                  fontSize: '13px', color: '#334155',
+                  cursor: 'pointer',
+                  fontWeight: code === language ? 600 : 400,
+                  transition: 'background 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  if (code !== language) e.currentTarget.style.background = '#F8FAFC'
+                }}
+                onMouseOut={(e) => {
+                  if (code !== language) e.currentTarget.style.background = 'transparent'
+                }}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
     <button className="mobile-menu" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Toggle menu"><Icon name={mobileOpen ? 'x' : 'menu'} /></button>
 

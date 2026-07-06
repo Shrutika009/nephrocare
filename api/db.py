@@ -1,4 +1,5 @@
 import os
+import json
 import psycopg2
 import psycopg2.extras
 from typing import Any, Dict, List, Optional
@@ -77,6 +78,7 @@ def init_db() -> None:
             nephrologist VARCHAR(255),
             blood_type VARCHAR(50),
             emergency_contact VARCHAR(50),
+            preferences JSONB DEFAULT '{}',
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """,
@@ -177,6 +179,19 @@ def create_user(user_id: str, name: str, email: str, password_hash: str, oauth_p
     finally:
         conn.close()
 
+def update_user_password(user_id: str, new_hash: str) -> bool:
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE nephrocare_users SET password_hash = %s WHERE id = %s", (new_hash, user_id))
+            conn.commit()
+            return cur.rowcount > 0
+    except Exception as e:
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
 # Session queries
 def create_session(token: str, user_id: str, email: str) -> None:
     conn = get_conn()
@@ -228,7 +243,8 @@ def get_profile(user_id: str) -> Optional[Dict[str, Any]]:
             cur.execute(
                 """
                 SELECT phone, dob, gender, ckd_stage as "ckdStage", nephrologist, 
-                       blood_type as "bloodType", emergency_contact as "emergencyContact"
+                       blood_type as "bloodType", emergency_contact as "emergencyContact",
+                       preferences
                 FROM nephrocare_user_profiles WHERE user_id = %s
                 """,
                 (user_id,)
@@ -244,8 +260,8 @@ def upsert_profile(user_id: str, profile_data: Dict[str, Any]) -> Dict[str, Any]
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 """
-                INSERT INTO nephrocare_user_profiles (user_id, phone, dob, gender, ckd_stage, nephrologist, blood_type, emergency_contact, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                INSERT INTO nephrocare_user_profiles (user_id, phone, dob, gender, ckd_stage, nephrologist, blood_type, emergency_contact, preferences, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                 ON CONFLICT (user_id) DO UPDATE SET
                     phone = EXCLUDED.phone,
                     dob = EXCLUDED.dob,
@@ -254,9 +270,10 @@ def upsert_profile(user_id: str, profile_data: Dict[str, Any]) -> Dict[str, Any]
                     nephrologist = EXCLUDED.nephrologist,
                     blood_type = EXCLUDED.blood_type,
                     emergency_contact = EXCLUDED.emergency_contact,
+                    preferences = EXCLUDED.preferences,
                     updated_at = CURRENT_TIMESTAMP
                 RETURNING phone, dob, gender, ckd_stage as "ckdStage", nephrologist, 
-                          blood_type as "bloodType", emergency_contact as "emergencyContact"
+                          blood_type as "bloodType", emergency_contact as "emergencyContact", preferences
                 """,
                 (
                     user_id,
@@ -266,7 +283,8 @@ def upsert_profile(user_id: str, profile_data: Dict[str, Any]) -> Dict[str, Any]
                     profile_data.get("ckdStage", ""),
                     profile_data.get("nephrologist", ""),
                     profile_data.get("bloodType", ""),
-                    profile_data.get("emergencyContact", "")
+                    profile_data.get("emergencyContact", ""),
+                    json.dumps(profile_data.get("preferences", {}))
                 )
             )
             row = cur.fetchone()

@@ -62,8 +62,18 @@ def signup(name: str, email: str, password: str) -> Tuple[Optional[dict[str, Any
             "name": user_data["name"],
             "email": user_data["email"],
         }, token
-    except Exception as e:
         return None, f"Signup failed: {str(e)}"
+
+
+def change_password(user_id: str, new_password: str) -> Tuple[bool, str]:
+    if len(new_password) < 8:
+        return False, "Password must be at least 8 characters"
+    
+    hashed_pwd = hash_password(new_password)
+    success = db.update_user_password(user_id, hashed_pwd)
+    if success:
+        return True, "Password updated successfully"
+    return False, "Failed to update password"
 
 
 def login(email: str, password: str) -> Tuple[Optional[dict[str, Any]], str]:

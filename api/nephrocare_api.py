@@ -1526,6 +1526,29 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(200, {"user": user, "token": token})
             return
 
+        if self.path == "/api/auth/password":
+            user = self.get_authenticated_user()
+            if not user:
+                self.respond(401, {"error": "Unauthorized"})
+                return
+            
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length).decode("utf-8") if length else "{}"
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                self.respond(400, {"error": "Invalid JSON"})
+                return
+            
+            from api import auth
+            new_password = payload.get("password", "")
+            success, msg = auth.change_password(user["id"], new_password)
+            if success:
+                self.respond(200, {"success": True, "message": msg})
+            else:
+                self.respond(400, {"error": msg})
+            return
+
         if self.path == "/api/auth/google":
             length = int(self.headers.get("Content-Length", "0"))
             raw = self.rfile.read(length).decode("utf-8") if length else "{}"

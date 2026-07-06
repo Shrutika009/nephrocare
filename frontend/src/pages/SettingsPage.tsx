@@ -111,6 +111,43 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
             localStorage.setItem('nephrocare_profile', JSON.stringify(newProfile))
             return newProfile
           })
+          if (data.preferences) {
+             const p = data.preferences
+             if (p.medReminder !== undefined) setMedReminder(p.medReminder)
+             if (p.foodReminder !== undefined) setFoodReminder(p.foodReminder)
+             if (p.labReminder !== undefined) setLabReminder(p.labReminder)
+             if (p.wearableAlerts !== undefined) setWearableAlerts(p.wearableAlerts)
+             if (p.whatsappAlerts !== undefined) setWhatsappAlerts(p.whatsappAlerts)
+             if (p.emailAlerts !== undefined) setEmailAlerts(p.emailAlerts)
+             if (p.darkMode !== undefined) setDarkMode(p.darkMode)
+             if (p.egfrUnit !== undefined) setEgfrUnit(p.egfrUnit)
+             if (p.weightUnit !== undefined) setWeightUnit(p.weightUnit)
+             if (p.tempUnit !== undefined) setTempUnit(p.tempUnit)
+             if (p.reminderFreq !== undefined) setReminderFreq(p.reminderFreq)
+             if (p.reminderTime1 !== undefined) setReminderTime1(p.reminderTime1)
+             if (p.reminderTime2 !== undefined) setReminderTime2(p.reminderTime2)
+             if (p.dietRestriction !== undefined) setDietRestriction(p.dietRestriction)
+             if (p.dailyCalories !== undefined) setDailyCalories(p.dailyCalories)
+             if (p.fluidLimit !== undefined) setFluidLimit(p.fluidLimit)
+             
+             const localLang = localStorage.getItem('nephrocare_language')
+             if (p.language !== undefined && (!localLang || localLang === p.language)) {
+               setLanguage(p.language)
+             } else if (p.language !== undefined && localLang && localLang !== p.language) {
+               // If backend differs from local, we must sync local to backend to avoid being overwritten on next load
+               const token = localStorage.getItem('auth_token')
+               const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+               fetch(`${apiUrl}/api/patient/profile`, {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                 body: JSON.stringify({ ...data, preferences: { ...p, language: localLang } })
+               }).catch(console.error)
+             }
+             if (p.fluidLimit !== undefined) setFluidLimit(p.fluidLimit)
+             if (p.shareWithDoctor !== undefined) setShareWithDoctor(p.shareWithDoctor)
+             if (p.anonymousAnalytics !== undefined) setAnonymousAnalytics(p.anonymousAnalytics)
+             if (p.twoFactor !== undefined) setTwoFactor(p.twoFactor)
+          }
         }
       })
       .catch(err => console.error('Failed to load profile from DB:', err))
@@ -129,6 +166,21 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
   // Dispatch language change event so chatbot and other pages can react
   useEffect(() => {
     localStorage.setItem('nephrocare_language', language)
+    
+    const target = `/en/${language}`;
+    const match = document.cookie.match(/googtrans=([^;]+)/);
+    const current = match ? match[1] : '';
+    
+    if (language === 'en' && current && current !== '/en/en') {
+      document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; domain=" + window.location.hostname + "; path=/;";
+      window.location.reload();
+    } else if (language !== 'en' && current !== target) {
+      document.cookie = `googtrans=${target}; path=/`;
+      document.cookie = `googtrans=${target}; domain=${window.location.hostname}; path=/`;
+      window.location.reload();
+    }
+
     window.dispatchEvent(new CustomEvent('nephrocare_language_change', { detail: { language } }))
   }, [language])
 
@@ -147,13 +199,21 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
     const token = localStorage.getItem('auth_token')
     if (user && token) {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+      const payload = {
+        ...profile,
+        preferences: {
+          medReminder, foodReminder, labReminder, wearableAlerts, whatsappAlerts, emailAlerts,
+          darkMode, egfrUnit, weightUnit, tempUnit, language, reminderFreq, reminderTime1, reminderTime2,
+          dietRestriction, dailyCalories, fluidLimit, shareWithDoctor, anonymousAnalytics, twoFactor
+        }
+      }
       fetch(`${apiUrl}/api/patient/profile`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(profile)
+        body: JSON.stringify(payload)
       }).catch(err => console.error('Failed to save profile to DB:', err))
     }
 
@@ -203,15 +263,54 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
     }
   }
 
+  const handleChangePassword = async () => {
+    if (newPassword.length < 8) return
+    const token = localStorage.getItem('auth_token')
+    if (!token) return
+    
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+      const res = await fetch(`${apiUrl}/api/auth/password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ password: newPassword })
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        alert('Your password has been successfully updated!')
+        setNewPassword('')
+      } else {
+        alert(data.error || 'Failed to update password')
+      }
+    } catch (err) {
+      alert('Network error while updating password')
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const form = e.currentTarget.closest('.settings-grid-2');
+      if (form) {
+        const elements = Array.from(form.querySelectorAll('input, select')) as HTMLElement[];
+        const index = elements.indexOf(e.currentTarget);
+        if (index > -1 && index < elements.length - 1) {
+          elements[index + 1].focus();
+        }
+      }
+    }
+  };
+
   const navItems: { id: SettingsSection; label: string; icon: React.ReactNode; desc: string }[] = [
     { id: 'profile',       label: 'Profile',        icon: <User size={18} />,        desc: 'Personal info & CKD details' },
     { id: 'notifications', label: 'Notifications',  icon: <Bell size={18} />,        desc: 'Reminders & alerts' },
-    { id: 'health',        label: 'Health Metrics', icon: <Activity size={18} />,    desc: 'Units, language, display' },
     { id: 'medications',   label: 'Medications',    icon: <Pill size={18} />,        desc: 'Medication schedule & reminders' },
     { id: 'diet',          label: 'Diet & Fluids',  icon: <Utensils size={18} />,    desc: 'Dietary restrictions & goals' },
     { id: 'wearable',      label: 'Wearable',       icon: <Smartphone size={18} />,  desc: 'Device & telemetry settings' },
-    { id: 'privacy',       label: 'Privacy',        icon: <Shield size={18} />,      desc: 'Password, 2FA & data sharing' },
-    { id: 'data',          label: 'Data & Storage', icon: <Download size={18} />,    desc: 'Export, import & clear data' },
+    { id: 'privacy',       label: 'Privacy',        icon: <Shield size={18} />,      desc: 'Password, 2FA & data clearing' },
   ]
 
   return (
@@ -274,23 +373,23 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
               <div className="settings-grid-2">
                 <div className="settings-field">
                   <label>Full Name</label>
-                  <input type="text" value={profile.name} onChange={e => setProfile(p => ({...p, name: e.target.value}))} placeholder="Your full name" />
+                  <input type="text" value={profile.name} onChange={e => setProfile(p => ({...p, name: e.target.value}))} onKeyDown={handleKeyDown} placeholder="Your full name" />
                 </div>
                 <div className="settings-field">
                   <label>Email Address</label>
-                  <input type="email" value={profile.email} onChange={e => setProfile(p => ({...p, email: e.target.value}))} placeholder="you@example.com" />
+                  <input type="email" value={profile.email} onChange={e => setProfile(p => ({...p, email: e.target.value}))} onKeyDown={handleKeyDown} placeholder="you@example.com" />
                 </div>
                 <div className="settings-field">
                   <label>Phone Number</label>
-                  <input type="tel" value={profile.phone} onChange={e => setProfile(p => ({...p, phone: e.target.value}))} placeholder="+91 XXXXX XXXXX" />
+                  <input type="tel" value={profile.phone} onChange={e => setProfile(p => ({...p, phone: e.target.value}))} onKeyDown={handleKeyDown} placeholder="+91 XXXXX XXXXX" />
                 </div>
                 <div className="settings-field">
                   <label>Date of Birth</label>
-                  <input type="date" value={profile.dob} onChange={e => setProfile(p => ({...p, dob: e.target.value}))} />
+                  <input type="date" value={profile.dob} onChange={e => setProfile(p => ({...p, dob: e.target.value}))} onKeyDown={handleKeyDown} />
                 </div>
                 <div className="settings-field">
                   <label>Gender</label>
-                  <select value={profile.gender} onChange={e => setProfile(p => ({...p, gender: e.target.value}))}>
+                  <select value={profile.gender} onChange={e => setProfile(p => ({...p, gender: e.target.value}))} onKeyDown={handleKeyDown}>
                     <option value="">Select gender</option>
                     <option>Male</option>
                     <option>Female</option>
@@ -300,24 +399,24 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
                 </div>
                 <div className="settings-field">
                   <label>Blood Type</label>
-                  <select value={profile.bloodType} onChange={e => setProfile(p => ({...p, bloodType: e.target.value}))}>
+                  <select value={profile.bloodType} onChange={e => setProfile(p => ({...p, bloodType: e.target.value}))} onKeyDown={handleKeyDown}>
                     <option value="">Select blood type</option>
                     {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(t => <option key={t}>{t}</option>)}
                   </select>
                 </div>
                 <div className="settings-field">
                   <label>CKD Stage</label>
-                  <select value={profile.ckdStage} onChange={e => setProfile(p => ({...p, ckdStage: e.target.value}))}>
+                  <select value={profile.ckdStage} onChange={e => setProfile(p => ({...p, ckdStage: e.target.value}))} onKeyDown={handleKeyDown}>
                     {['G1','G2','G3a','G3b','G4','G5'].map(s => <option key={s}>{s}</option>)}
                   </select>
                 </div>
                 <div className="settings-field">
                   <label>Nephrologist Name</label>
-                  <input type="text" value={profile.nephrologist} onChange={e => setProfile(p => ({...p, nephrologist: e.target.value}))} placeholder="Dr. Full Name" />
+                  <input type="text" value={profile.nephrologist} onChange={e => setProfile(p => ({...p, nephrologist: e.target.value}))} onKeyDown={handleKeyDown} placeholder="Dr. Full Name" />
                 </div>
                 <div className="settings-field settings-field-full">
                   <label>Emergency Contact</label>
-                  <input type="text" value={profile.emergencyContact} onChange={e => setProfile(p => ({...p, emergencyContact: e.target.value}))} placeholder="Name — +91 XXXXX XXXXX" />
+                  <input type="text" value={profile.emergencyContact} onChange={e => setProfile(p => ({...p, emergencyContact: e.target.value}))} onKeyDown={handleKeyDown} placeholder="Name — +91 XXXXX XXXXX" />
                 </div>
               </div>
             </div>
@@ -394,76 +493,6 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
             </div>
           )}
 
-          {/* ─── HEALTH METRICS ─── */}
-          {activeSection === 'health' && (
-            <div className="settings-section">
-              <div className="settings-section-header">
-                <Activity size={20} />
-                <div>
-                  <h2>Health Metrics & Display</h2>
-                  <p>Customize units, language, and how your data is displayed across NephroCare.</p>
-                </div>
-              </div>
-
-              <div className="settings-grid-2">
-                <div className="settings-field">
-                  <label>eGFR Unit</label>
-                  <select value={egfrUnit} onChange={e => setEgfrUnit(e.target.value)}>
-                    <option>mL/min/1.73m²</option>
-                    <option>mL/min</option>
-                  </select>
-                </div>
-                <div className="settings-field">
-                  <label>Weight Unit</label>
-                  <select value={weightUnit} onChange={e => setWeightUnit(e.target.value)}>
-                    <option>kg</option>
-                    <option>lbs</option>
-                  </select>
-                </div>
-                <div className="settings-field">
-                  <label>Temperature Unit</label>
-                  <select value={tempUnit} onChange={e => setTempUnit(e.target.value)}>
-                    <option>Celsius</option>
-                    <option>Fahrenheit</option>
-                  </select>
-                </div>
-                <div className="settings-field">
-                  <label>Language</label>
-                  <select value={language} onChange={e => setLanguage(e.target.value)}>
-                    <option value="en">English</option>
-                    <option value="hi">Hindi (हिन्दी)</option>
-                    <option value="ta">Tamil (தமிழ்)</option>
-                    <option value="te">Telugu (తెలుగు)</option>
-                    <option value="kn">Kannada (ಕನ್ನಡ)</option>
-                    <option value="ml">Malayalam (മലയാളം)</option>
-                    <option value="mr">Marathi (मराठी)</option>
-                    <option value="gu">Gujarati (ગુજરાતી)</option>
-                    <option value="bn">Bengali (বাংলা)</option>
-                    <option value="pa">Punjabi (ਪੰਜਾਬੀ)</option>
-                    <option value="ur">Urdu (اردو)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="settings-toggle-group" style={{ marginTop: '24px' }}>
-                <h3 className="settings-group-title">Display</h3>
-                <ToggleRow
-                  icon={darkMode ? <Moon size={16} /> : <Sun size={16} />}
-                  label="Dark Mode"
-                  desc="Switch to a dark interface for low-light environments"
-                  value={darkMode}
-                  onChange={handleDarkModeToggle}
-                  color="blue"
-                />
-              </div>
-
-              <div className="settings-info-card">
-                <Info size={15} />
-                <span>Unit changes take effect across charts, reports, and wearable telemetry displays after saving.</span>
-              </div>
-            </div>
-          )}
-
           {/* ─── MEDICATIONS ─── */}
           {activeSection === 'medications' && (
             <div className="settings-section">
@@ -478,7 +507,7 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
               <div className="settings-grid-2">
                 <div className="settings-field">
                   <label>Reminder Frequency</label>
-                  <select value={reminderFreq} onChange={e => setReminderFreq(e.target.value)}>
+                  <select value={reminderFreq} onChange={e => setReminderFreq(e.target.value)} onKeyDown={handleKeyDown}>
                     <option>Once daily</option>
                     <option>Twice daily</option>
                     <option>Three times daily</option>
@@ -487,12 +516,12 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
                 </div>
                 <div className="settings-field">
                   <label>First Dose Time</label>
-                  <input type="time" value={reminderTime1} onChange={e => setReminderTime1(e.target.value)} />
+                  <input type="time" value={reminderTime1} onChange={e => setReminderTime1(e.target.value)} onKeyDown={handleKeyDown} />
                 </div>
                 {(reminderFreq === 'Twice daily' || reminderFreq === 'Three times daily') && (
                   <div className="settings-field">
                     <label>Second Dose Time</label>
-                    <input type="time" value={reminderTime2} onChange={e => setReminderTime2(e.target.value)} />
+                    <input type="time" value={reminderTime2} onChange={e => setReminderTime2(e.target.value)} onKeyDown={handleKeyDown} />
                   </div>
                 )}
               </div>
@@ -537,7 +566,7 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
               <div className="settings-grid-2">
                 <div className="settings-field">
                   <label>Primary Dietary Restriction</label>
-                  <select value={dietRestriction} onChange={e => setDietRestriction(e.target.value)}>
+                  <select value={dietRestriction} onChange={e => setDietRestriction(e.target.value)} onKeyDown={handleKeyDown}>
                     <option>Low Potassium</option>
                     <option>Low Phosphorus</option>
                     <option>Low Sodium</option>
@@ -549,12 +578,12 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
                 <div className="settings-field">
                   <label>Daily Calorie Target (kcal)</label>
                   <input type="number" value={dailyCalories} min={1000} max={3500}
-                    onChange={e => setDailyCalories(e.target.value)} placeholder="e.g. 1800" />
+                    onChange={e => setDailyCalories(e.target.value)} onKeyDown={handleKeyDown} placeholder="e.g. 1800" />
                 </div>
                 <div className="settings-field">
                   <label>Daily Fluid Limit (Litres)</label>
                   <input type="number" value={fluidLimit} min={0.5} max={4} step={0.1}
-                    onChange={e => setFluidLimit(e.target.value)} placeholder="e.g. 1.5" />
+                    onChange={e => setFluidLimit(e.target.value)} onKeyDown={handleKeyDown} placeholder="e.g. 1.5" />
                 </div>
               </div>
 
@@ -667,58 +696,8 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
                 />
               </div>
 
-              <div className="settings-password-box">
-                <h3 className="settings-group-title">Change Password</h3>
-                <div className="settings-password-field">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={newPassword}
-                    onChange={e => setNewPassword(e.target.value)}
-                    placeholder="Enter new password..."
-                  />
-                  <button onClick={() => setShowPassword(p => !p)} className="settings-eye-btn">
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-                <button className="settings-change-pw-btn" disabled={newPassword.length < 8}>
-                  {newPassword.length < 8 ? 'Minimum 8 characters' : 'Update Password'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ─── DATA ─── */}
-          {activeSection === 'data' && (
-            <div className="settings-section">
-              <div className="settings-section-header">
-                <Download size={20} />
-                <div>
-                  <h2>Data & Storage</h2>
-                  <p>Export your health records, import previous backups, or clear stored data.</p>
-                </div>
-              </div>
-
-              <div className="settings-data-cards">
-                <div className="settings-data-card export">
-                  <div className="settings-data-card-icon"><Download size={22} /></div>
-                  <div>
-                    <div className="settings-data-card-title">Export My Data</div>
-                    <div className="settings-data-card-desc">Download a complete JSON backup of your profile, predictions, and scan history.</div>
-                  </div>
-                  <button className="settings-data-btn export-btn" onClick={exportData}>Export</button>
-                </div>
-
-                <div className="settings-data-card import">
-                  <div className="settings-data-card-icon"><Upload size={22} /></div>
-                  <div>
-                    <div className="settings-data-card-title">Import Data</div>
-                    <div className="settings-data-card-desc">Restore from a previous NephroCare JSON backup file.</div>
-                  </div>
-                  <button className="settings-data-btn import-btn" onClick={() => document.getElementById('settings-import-input')?.click()}>Import</button>
-                  <input id="settings-import-input" type="file" accept=".json" style={{ display: 'none' }} />
-                </div>
-
-                <div className="settings-data-card danger">
+              <div className="settings-data-cards" style={{ marginBottom: '24px' }}>
+                <div className="settings-data-card danger" style={{ border: '1px solid #fca5a5' }}>
                   <div className="settings-data-card-icon danger"><Trash2 size={22} /></div>
                   <div>
                     <div className="settings-data-card-title">Clear All Health Data</div>
@@ -728,14 +707,23 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
                 </div>
               </div>
 
-              <div className="settings-storage-bar">
-                <div className="settings-storage-header">
-                  <span>Local Storage Usage</span>
-                  <span>~{Math.round(JSON.stringify(localStorage).length / 1024)} KB used</span>
+              <div className="settings-password-box">
+                <h3 className="settings-group-title">Change Password</h3>
+                <div className="settings-password-field">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    placeholder="Enter new password..."
+                    onKeyDown={handleKeyDown}
+                  />
+                  <button onClick={() => setShowPassword(p => !p)} className="settings-eye-btn">
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                 </div>
-                <div className="settings-storage-track">
-                  <div className="settings-storage-fill" style={{ width: `${Math.min(100, Math.round(JSON.stringify(localStorage).length / 50000 * 100))}%` }}></div>
-                </div>
+                <button onClick={handleChangePassword} className="settings-change-pw-btn" disabled={newPassword.length < 8}>
+                  {newPassword.length < 8 ? 'Minimum 8 characters' : 'Update Password'}
+                </button>
               </div>
             </div>
           )}

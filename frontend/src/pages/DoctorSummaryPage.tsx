@@ -67,7 +67,7 @@ export function DoctorSummaryPage({ showPage, user }: DoctorSummaryPageProps) {
         {/* Patient Demographics Info Table */}
         <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', marginBottom: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', fontSize: '13px', lineHeight: 1.6 }}>
           <div>
-            <div><strong>Patient Name:</strong> {user ? user.name : 'Vimla Choudhary'}</div>
+            <div><strong>Patient Name:</strong> {user ? user.name : 'Anonymous'}</div>
             <div><strong>Age / Gender:</strong> {latestPrediction ? latestPrediction.age : '48'} Yrs / {latestPrediction ? (latestPrediction.sex === 'female' ? 'Female' : 'Male') : 'Female'}</div>
             <div><strong>Referral Doctor:</strong> Dr. R. K. Sharma, MD, DM (Nephrology)</div>
           </div>
