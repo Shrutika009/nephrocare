@@ -1,90 +1,367 @@
-.footer-main {
-    padding: 42px clamp(24px, 7vw, 108px);
-    display: grid;
-    grid-template-columns: minmax(260px, 1.4fr) minmax(220px, .8fr) minmax(260px, 1fr);
-    gap: clamp(24px, 5vw, 72px);
-    align-items: start;
-    color: #fff;
+.footer-container {
     background: #083b66;
     border-top: 5px solid #052a49;
+    color: #fff;
+    font-family: 'Raleway', sans-serif;
 }
 
-.footer-intro p {
-    max-width: 390px;
-    color: rgba(255, 255, 255, .85);
-    font-size: 14px;
-    line-height: 1.7;
-    margin: 14px 0 0;
+.footer-main {
+    padding: 60px clamp(24px, 7vw, 108px) 30px;
+    display: grid;
+    grid-template-columns: minmax(280px, 1.8fr) repeat(3, minmax(180px, 1fr));
+    gap: clamp(24px, 5vw, 60px);
+    align-items: start;
+}
+
+.footer-column {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.footer-brand-column {
+    padding-right: 20px;
 }
 
 .footer-brand {
-    color: white;
+    color: #white;
     display: flex;
     align-items: center;
     gap: 12px;
+    text-decoration: none;
 }
 
 .footer-logo {
-    width: 46px;
-    height: 46px;
+    width: 48px;
+    height: 48px;
     object-fit: cover;
     object-position: 46% 45%;
     border-radius: 14px;
     background: #fff;
     border: 1px solid rgba(255, 255, 255, .25);
+    transition: transform 0.3s ease;
+}
+
+.footer-brand:hover .footer-logo {
+    transform: scale(1.05);
 }
 
 .footer-brand .brand-text {
     color: white;
-    font-size: 28px;
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1.1;
+    display: flex;
+    flex-direction: column;
 }
 
 .footer-brand .brand-text small {
-    color: rgba(255, 255, 255, .82);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    opacity: 0.8;
+    margin-top: 2px;
 }
 
-.footer-links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px 20px;
-    padding-top: 10px;
-}
-
-.footer-links a,
-.footer-links button {
-    border: 1px solid rgba(255, 255, 255, .22);
-    background: rgba(255, 255, 255, .08);
-    color: white;
-    padding: 9px 13px;
-    border-radius: 999px;
-    font: inherit;
+.footer-description {
+    color: rgba(255, 255, 255, 0.75);
     font-size: 14px;
-    font-weight: 800;
-    cursor: pointer;
-}
-
-.footer-links a:hover,
-.footer-links button:hover {
-    background: rgba(255, 255, 255, .16);
-}
-
-.footer-care-note {
-    color: rgba(255, 255, 255, .85);
-    font-size: 14px;
-    line-height: 1.75;
+    line-height: 1.6;
     margin: 8px 0 0;
-    padding-left: 18px;
-    border-left: 3px solid rgba(255, 255, 255, .35);
 }
 
+/* Column Link List */
+.footer-column h4 {
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 0 0 4px 0;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 8px;
+}
+
+.footer-nav-col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.footer-nav-col button,
+.footer-email-link {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.75);
+    padding: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s ease;
+    text-decoration: none;
+}
+
+.footer-nav-col button svg,
+.footer-email-link svg {
+    opacity: 0.6;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.footer-nav-col button:hover,
+.footer-email-link:hover {
+    color: #fff;
+    transform: translateX(6px);
+}
+
+.footer-nav-col button:hover svg,
+.footer-email-link:hover svg {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+/* Newsletter Signup */
+.footer-newsletter {
+    margin-top: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.footer-newsletter h4 {
+    font-size: 14px;
+    text-transform: none;
+    border: none;
+    padding: 0;
+    letter-spacing: 0.5px;
+    margin: 0;
+}
+
+.footer-newsletter p {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0;
+    line-height: 1.5;
+}
+
+.newsletter-form {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.newsletter-form input {
+    flex: 1;
+    padding: 10px 16px;
+    border-radius: 30px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    font-size: 13px;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.newsletter-form input:focus {
+    border-color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.newsletter-form button {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: none;
+    background: #236d9f;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.newsletter-form button:hover:not(:disabled) {
+    background: #2b84c0;
+    transform: scale(1.05);
+}
+
+.newsletter-form button:disabled {
+    background: rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.4);
+    cursor: not-allowed;
+}
+
+.newsletter-success {
+    font-size: 12px;
+    color: #4ade80;
+    font-weight: 600;
+    margin-top: 2px;
+}
+
+/* Social Media Icons */
+.footer-socials {
+    display: flex;
+    gap: 12px;
+    margin-top: 15px;
+}
+
+.footer-socials a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.85);
+    transition: all 0.2s ease;
+    text-decoration: none;
+}
+
+.footer-socials a:hover {
+    background: #236d9f;
+    color: #fff;
+    transform: translateY(-3px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+/* Regulatory Info */
+.footer-regulatory {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 700;
+    margin-top: 10px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.footer-regulatory svg {
+    color: #4ade80;
+}
+
+/* Medical Disclaimer Banner */
+.footer-disclaimer-banner {
+    margin: 10px clamp(24px, 7vw, 108px) 30px;
+    padding: 20px 24px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.disclaimer-icon-box {
+    color: rgba(255, 255, 255, 0.35);
+    flex-shrink: 0;
+    padding-top: 2px;
+}
+
+.disclaimer-content h5 {
+    margin: 0 0 6px 0;
+    color: rgba(255, 255, 255, 0.95);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.disclaimer-content p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.65;
+    color: rgba(255, 255, 255, 0.68);
+}
+
+.disclaimer-content p strong {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* Footer Bottom copyright & secondary links */
 .footer-bottom {
-    padding: 16px clamp(24px, 7vw, 108px);
+    padding: 24px clamp(24px, 7vw, 108px);
     display: flex;
     justify-content: space-between;
-    gap: 18px;
-    color: rgba(255, 255, 255, .92);
-    background: #083b66;
-    border-top: 1px solid rgba(255, 255, 255, .14);
-    font-size: 12px;
-    font-weight: 700;
+    align-items: center;
+    gap: 24px;
+    background: #062f52;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.footer-bottom-left {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.footer-subtext {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    font-weight: 500;
+}
+
+.footer-bottom-links {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.footer-bottom-links button {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.2s ease;
+    padding: 0;
+}
+
+.footer-bottom-links button:hover {
+    color: #fff;
+    text-decoration: underline;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+    .footer-main {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 40px;
+    }
+}
+
+@media (max-width: 640px) {
+    .footer-main {
+        grid-template-columns: 1fr;
+        gap: 36px;
+        padding-top: 40px;
+    }
+
+    .footer-brand-column {
+        padding-right: 0;
+    }
+
+    .footer-disclaimer-banner {
+        flex-direction: column;
+        gap: 12px;
+        padding: 16px;
+    }
+
+    .footer-bottom {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+        padding-top: 20px;
+        padding-bottom: 30px;
+    }
 }

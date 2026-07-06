@@ -679,9 +679,12 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
       localStorage.setItem('nephrocare_language', autoLang)
     }
 
+    // Clean user message coordinates text for UI bubble display
+    const displayContent = textToSend.replace(/\s*\(latitude:\s*-?\d+\.\d+,\s*longitude:\s*-?\d+\.\d+\)/gi, '')
+
     const userMsg: Message = {
       role: 'user',
-      content: textToSend,
+      content: displayContent,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
 
