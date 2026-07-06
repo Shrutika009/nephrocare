@@ -127,7 +127,7 @@ function PredictionResultView({ result, activeReport, setPredictionStep, showPag
       </div>
 
       {/* Patient Demographics Info Table */}
-      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', marginBottom: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', fontSize: '13px', lineHeight: 1.6, textAlign: 'left' }}>
+      <div className="grid-2-col" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', marginBottom: '24px', gap: '20px', fontSize: '13px', lineHeight: 1.6, textAlign: 'left'  }}>
         <div>
           <div><strong>Patient Name:</strong> {patientName}</div>
           <div><strong>Age / Gender:</strong> {patientAge} Yrs / {patientSex}</div>
@@ -170,7 +170,7 @@ function PredictionResultView({ result, activeReport, setPredictionStep, showPag
       </div>
 
       {/* Assessment and Recommendations grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '28px', textAlign: 'left' }}>
+      <div className="grid-2-col" style={{  gap: '20px', marginBottom: '28px', textAlign: 'left'  }}>
         <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '8px', padding: '16px' }}>
           <h3 style={{ margin: '0 0 8px', color: '#b45309', fontSize: '14px', fontWeight: '700' }}>
             ESTIMATED CKD RISK EVALUATION
@@ -199,7 +199,7 @@ function PredictionResultView({ result, activeReport, setPredictionStep, showPag
       </div>
 
       {/* Sign-offs */}
-      <div style={{ marginTop: '48px', paddingTop: '20px', borderTop: '2px solid #cbd5e1', display: 'grid', gridTemplateColumns: '1fr 1fr', fontSize: '11px', color: '#64748b', lineHeight: 1.5, textAlign: 'left' }}>
+      <div className="grid-2-col" style={{ marginTop: '48px', paddingTop: '20px', borderTop: '2px solid #cbd5e1', fontSize: '11px', color: '#64748b', lineHeight: 1.5, textAlign: 'left'  }}>
         <div>
           <strong>NephroCare Diagnostic Center</strong><br />
           NABL Certificate Number: MC-2947<br />
@@ -225,7 +225,7 @@ function PredictionResultView({ result, activeReport, setPredictionStep, showPag
           </h2>
 
           {/* Current Stage + Decline Rate KPIs */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+          <div className="grid-3-col" style={{  gap: '16px', marginBottom: '24px'  }}>
             <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '10px', padding: '18px', textAlign: 'center' }}>
               <div style={{ fontSize: '11px', fontWeight: '600', color: '#92400e', textTransform: 'uppercase', marginBottom: '6px' }}>Current Stage (XGBoost)</div>
               <div style={{ fontSize: '36px', fontWeight: '900', color: '#b45309' }}>{stageResult.current_stage}</div>

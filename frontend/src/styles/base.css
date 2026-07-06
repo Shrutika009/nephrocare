@@ -666,3 +666,71 @@ html, body, .settings-page, .settings-content, .settings-sidebar,
     0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
     30%            { transform: translateY(-5px); opacity: 1; }
 }
+
+/* ─── Responsive Grid Utilities ─── */
+.grid-main-sidebar {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+}
+
+.grid-sidebar-main {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+}
+
+.grid-2-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+}
+
+.grid-2-col-asym {
+    display: grid;
+    grid-template-columns: 1.05fr 0.95fr;
+}
+
+.grid-2-col-asym-wide {
+    display: grid;
+    grid-template-columns: 1.8fr 1.2fr;
+}
+
+.grid-3-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+@media (max-width: 900px) {
+    .grid-main-sidebar,
+    .grid-sidebar-main {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .grid-2-col,
+    .grid-2-col-asym,
+    .grid-2-col-asym-wide,
+    .grid-3-col {
+        grid-template-columns: 1fr !important;
+    }
+    
+    .header {
+        flex-direction: column;
+        padding: 12px;
+        height: auto !important;
+    }
+    
+    .nav-links {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px !important;
+        margin-top: 10px;
+    }
+    
+    .wearable-page-container {
+        padding: 12px !important;
+    }
+
+    .dashboard-page, .settings-page {
+        padding: 12px !important;
+    }
+}

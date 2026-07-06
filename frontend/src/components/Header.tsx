@@ -249,14 +249,28 @@ export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpe
     </div>}
 
     {mobileOpen && <div className="mobile-panel">
-      <button type="button" onClick={() => showPage('ckd-prediction')}>Risk Calculator</button>
-      <button type="button" onClick={() => showPage('food-tools')}>Food Tools</button>
-      <button type="button" onClick={() => showPage('ultrasound')}>Ultrasound Scan</button>
-      <button type="button" onClick={() => showPage('wearable')}>Wearable Twin</button>
-      <button type="button" onClick={() => showPage('dashboard')}>Dashboard</button>
-      <button type="button" onClick={() => showPage('voice-assist')}>Voice Assist</button>
-      <button type="button" onClick={() => scrollTo('about')}>About</button>
-      <button type="button" onClick={() => scrollTo('resources')}>Resources</button>
+      {user ? (
+        <>
+          <div style={{ padding: '12px 16px 4px', color: '#64748b', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase' }}>Hi, {user.name}</div>
+          <button type="button" onClick={() => { showPage('settings'); setMobileOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="settings" size={16} /> Settings</button>
+          <button type="button" onClick={() => { onLogout(); setMobileOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="log-out" size={16} /> Log out</button>
+          <div style={{ height: '1px', background: '#e2e8f0', margin: '8px 16px' }} />
+        </>
+      ) : (
+        <>
+          <button type="button" onClick={() => { showPage('login'); setMobileOpen(false); }} style={{ fontWeight: 'bold', color: '#236d9f', display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="user" size={16} /> Login / Sign up</button>
+          <div style={{ height: '1px', background: '#e2e8f0', margin: '8px 16px' }} />
+        </>
+      )}
+      <button type="button" onClick={() => { showPage('chatbot'); setMobileOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="message-circle" size={16} /> AI Assistant</button>
+      <button type="button" onClick={() => { showPage('ckd-prediction'); setMobileOpen(false); }}>Risk Calculator</button>
+      <button type="button" onClick={() => { showPage('food-tools'); setMobileOpen(false); }}>Food Tools</button>
+      <button type="button" onClick={() => { showPage('ultrasound'); setMobileOpen(false); }}>Ultrasound Scan</button>
+      <button type="button" onClick={() => { showPage('wearable'); setMobileOpen(false); }}>Wearable Twin</button>
+      <button type="button" onClick={() => { showPage('dashboard'); setMobileOpen(false); }}>Dashboard</button>
+      <button type="button" onClick={() => { showPage('voice-assist'); setMobileOpen(false); }}>Voice Assist</button>
+      <button type="button" onClick={() => { scrollTo('about'); setMobileOpen(false); }}>About</button>
+      <button type="button" onClick={() => { scrollTo('resources'); setMobileOpen(false); }}>Resources</button>
     </div>}
   </header>
 }

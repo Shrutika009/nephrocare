@@ -189,7 +189,7 @@ export function VoiceAssistPage({ showPage, user }: VoiceAssistPageProps) {
   }
 
   return (
-    <div className="wearable-page-container" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '28px', minHeight: 'calc(100vh - 120px)', padding: '20px' }}>
+    <div className="wearable-page-container grid-main-sidebar" style={{  gap: '28px', minHeight: 'calc(100vh - 120px)', padding: '20px'  }}>
       {/* LEFT COLUMN: Main Voice Analysis Workspace */}
       <div className="wearable-card" style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '28px' }}>
         {/* Workspace Header */}
@@ -358,7 +358,7 @@ export function VoiceAssistPage({ showPage, user }: VoiceAssistPageProps) {
             </div>
 
             {/* Grid of Medications and Interactions */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div className="grid-2-col" style={{  gap: '20px'  }}>
               {/* Medications */}
               <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px' }}>
                 <h4 style={{ margin: '0 0 12px', color: '#0f172a', fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -463,7 +463,7 @@ export function VoiceAssistPage({ showPage, user }: VoiceAssistPageProps) {
             </div>
 
             {/* Patient & Doctor Summaries */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div className="grid-2-col" style={{  gap: '20px'  }}>
               <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px' }}>
                 <h4 style={{ margin: '0 0 8px', color: '#0f172a', fontSize: '14px', fontWeight: 600 }}>Patient Summary</h4>
                 <div style={{ fontSize: '13px', color: '#475569', lineHeight: 1.5, whiteSpace: 'pre-line' }}>

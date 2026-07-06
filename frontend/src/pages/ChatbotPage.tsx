@@ -771,7 +771,7 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
   }
 
   return (
-    <div className="wearable-page-container" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '28px', minHeight: 'calc(100vh - 120px)' }}>
+    <div className="wearable-page-container grid-main-sidebar" style={{ gap: '28px', minHeight: 'calc(100vh - 120px)' }}>
       {/* LEFT COLUMN: Main Chat Interface */}
       <div className="wearable-card" style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '24px' }}>
         {/* Header bar */}
@@ -1023,7 +1023,7 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div className="grid-2-col" style={{  gap: '10px'  }}>
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Age</label>
                 <input
@@ -1046,7 +1046,7 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div className="grid-2-col" style={{  gap: '10px'  }}>
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>eGFR (mL/min)</label>
                 <input
@@ -1068,7 +1068,7 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div className="grid-2-col" style={{  gap: '10px'  }}>
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Potassium (mmol/L)</label>
                 <input

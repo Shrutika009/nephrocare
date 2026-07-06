@@ -583,7 +583,7 @@ export function WearablePage() {
               )}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', opacity: isManualMode ? 1 : 0.65, pointerEvents: isManualMode ? 'auto' : 'none', transition: 'opacity 0.2s' }}>
+            <div className="grid-2-col" style={{  gap: '16px', opacity: isManualMode ? 1 : 0.65, pointerEvents: isManualMode ? 'auto' : 'none', transition: 'opacity 0.2s'  }}>
               
               <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#475569' }}>
                 <span style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -801,7 +801,7 @@ export function WearablePage() {
                   {selectedPin === 'G34' && current && (
                     <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e2e8f0', fontSize: 12, color: '#0f172a' }}>
                       <strong>Simulated Waveform Metrics:</strong>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
+                      <div className="grid-2-col" style={{  gap: 8, marginTop: 4  }}>
                         <div>T-Wave Amp: {current.t_wave_amplitude} mV</div>
                         <div>QRS (R-Wave) Amp: {current.qrs_amplitude} mV</div>
                         <div style={{ gridColumn: 'span 2' }}>
