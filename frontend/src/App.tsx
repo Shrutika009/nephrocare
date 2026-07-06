@@ -72,24 +72,117 @@ function App() {
     const interval = setInterval(() => {
       const medReminder = window.localStorage.getItem('nephrocare_med_reminder') === 'true';
       const foodReminder = window.localStorage.getItem('nephrocare_food_reminder') === 'true';
+      const whatsappEnabled = window.localStorage.getItem('nephrocare_whatsapp_enabled') === 'true';
+      const phoneRaw = window.localStorage.getItem('nephrocare_phone') || '';
+      const phone = phoneRaw.replace(/"/g, ''); // Clean quotes if any
       const now = new Date();
 
-      if (medReminder) {
-        const lastMed = window.localStorage.getItem('nephrocare_last_med_alert');
-        // Trigger every 2 minutes for demo purposes (real app: 2-3 hours)
-        if (!lastMed || (now.getTime() - new Date(lastMed).getTime()) > 120000) {
-          addToast('info', 'Medication Reminder', 'It is time to take your prescribed CKD medication.');
-          window.localStorage.setItem('nephrocare_last_med_alert', now.toISOString());
+      const sendBackgroundWhatsApp = async (title: string, message: string) => {
+        if (!whatsappEnabled || !phone) return;
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/send-whatsapp`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              phone: phone,
+              message: `🔔 NephroCare Reminder\n\n*${title}*\n${message}`
+            })
+          });
+          const data = await response.json();
+          if (data.success) {
+            addToast('whatsapp', 'WhatsApp Alert Sent', `📱 Sent to ${phone}: ${title}`);
+            const wLogs = JSON.parse(window.localStorage.getItem('nephrocare_whatsapp_history') || '[]');
+            window.localStorage.setItem('nephrocare_whatsapp_history', JSON.stringify([{ timestamp: new Date().toISOString(), title, message, status: 'Sent' }, ...wLogs].slice(0, 50)));
+            window.dispatchEvent(new Event('storage'));
+          } else {
+            addToast('whatsapp', 'WhatsApp Simulated', `📱 [Simulated to ${phone}]: ${title}`);
+            const wLogs = JSON.parse(window.localStorage.getItem('nephrocare_whatsapp_history') || '[]');
+            window.localStorage.setItem('nephrocare_whatsapp_history', JSON.stringify([{ timestamp: new Date().toISOString(), title, message, status: 'Simulated' }, ...wLogs].slice(0, 50)));
+            window.dispatchEvent(new Event('storage'));
+          }
+        } catch (err) {
+          console.error('Failed to send background WhatsApp:', err);
         }
+      };
+
+      const reminderFreq = window.localStorage.getItem('nephrocare_med_freq') || 'Twice daily';
+      const reminderTime1 = window.localStorage.getItem('nephrocare_med_time1') || '08:00';
+      const reminderTime2 = window.localStorage.getItem('nephrocare_med_time2') || '20:00';
+
+      const formatTime = (d: Date) => {
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        return `${hh}:${mm}`;
+      };
+      const currentTimeStr = formatTime(now);
+      const todayStr = now.toDateString();
+
+      if (medReminder) {
+        // 1. Check actual scheduled time matching
+        if (currentTimeStr === reminderTime1) {
+          const lastSentDose1 = window.localStorage.getItem('nephrocare_last_med_dose1_date');
+          if (lastSentDose1 !== todayStr) {
+            const title = 'Medication Reminder (First Dose)';
+            const msg = `It is time to take your morning CKD medication dose (scheduled at ${reminderTime1}).`;
+            addToast('info', title, msg);
+            sendBackgroundWhatsApp(title, msg);
+            window.localStorage.setItem('nephrocare_last_med_dose1_date', todayStr);
+          }
+        }
+
+        if (reminderFreq === 'Twice daily' || reminderFreq === 'Three times daily') {
+          if (currentTimeStr === reminderTime2) {
+            const lastSentDose2 = window.localStorage.getItem('nephrocare_last_med_dose2_date');
+            if (lastSentDose2 !== todayStr) {
+              const title = 'Medication Reminder (Second Dose)';
+              const msg = `It is time to take your evening CKD medication dose (scheduled at ${reminderTime2}).`;
+              addToast('info', title, msg);
+              sendBackgroundWhatsApp(title, msg);
+              window.localStorage.setItem('nephrocare_last_med_dose2_date', todayStr);
+            }
+          }
+        }
+
+        // 2. Active demo mode fallback: if no alert was EVER sent, trigger an initial demo alert to show it works
+        const totalAlertsSent = window.localStorage.getItem('nephrocare_total_med_alerts_sent') || '0';
+        if (totalAlertsSent === '0') {
+          const title = 'Medication Reminder (Demo)';
+          const msg = `This is a test reminder to verify your schedule settings. Your daily schedule is set to: ${reminderFreq} (${reminderTime1} / ${reminderTime2}).`;
+          addToast('info', title, msg);
+          sendBackgroundWhatsApp(title, msg);
+          window.localStorage.setItem('nephrocare_total_med_alerts_sent', '1');
+        }
+      } else {
+        // Reset demo counter if they toggle it off so they can test it again
+        window.localStorage.setItem('nephrocare_total_med_alerts_sent', '0');
       }
 
       if (foodReminder) {
-        const lastFood = window.localStorage.getItem('nephrocare_last_food_alert');
-        // Trigger every 3 minutes for demo purposes
-        if (!lastFood || (now.getTime() - new Date(lastFood).getTime()) > 180000) {
-          addToast('success', 'Dietary Reminder', 'Have you logged your recent meals? Ensure they align with your kidney-safe diet plan.');
-          window.localStorage.setItem('nephrocare_last_food_alert', now.toISOString());
+        // 1. Check actual scheduled meal times (Breakfast, Lunch, Dinner)
+        const mealTimes = ['09:00', '13:00', '20:00'];
+        if (mealTimes.includes(currentTimeStr)) {
+          const lastSentFood = window.localStorage.getItem(`nephrocare_last_food_sent_${currentTimeStr}`);
+          if (lastSentFood !== todayStr) {
+            const title = 'Dietary Reminder';
+            const msg = 'Have you logged your recent meals? Ensure they align with your kidney-safe diet plan.';
+            addToast('success', title, msg);
+            sendBackgroundWhatsApp(title, msg);
+            window.localStorage.setItem(`nephrocare_last_food_sent_${currentTimeStr}`, todayStr);
+          }
         }
+
+        // 2. Active demo mode fallback for diet
+        const totalFoodAlertsSent = window.localStorage.getItem('nephrocare_total_food_alerts_sent') || '0';
+        if (totalFoodAlertsSent === '0') {
+          const title = 'Dietary Reminder (Demo)';
+          const msg = 'This is a test dietary reminder to verify your food log settings. (Fluid Limit: ' + (window.localStorage.getItem('nephrocare_fluid_limit') || '1.5') + 'L/day).';
+          addToast('success', title, msg);
+          sendBackgroundWhatsApp(title, msg);
+          window.localStorage.setItem('nephrocare_total_food_alerts_sent', '1');
+        }
+      } else {
+        // Reset demo counter if they toggle it off
+        window.localStorage.setItem('nephrocare_total_food_alerts_sent', '0');
       }
     }, 10000); // Check every 10 seconds
 

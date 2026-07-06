@@ -66,7 +66,7 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
   const [foodReminder, setFoodReminder] = useState(() => localStorage.getItem('nephrocare_food_reminder') === 'true')
   const [labReminder, setLabReminder] = useState(() => localStorage.getItem('nephrocare_lab_reminder') === 'true')
   const [wearableAlerts, setWearableAlerts] = useState(() => localStorage.getItem('nephrocare_wearable_alerts') !== 'false')
-  const [whatsappAlerts, setWhatsappAlerts] = useState(() => localStorage.getItem('nephrocare_whatsapp_alerts') === 'true')
+  const [whatsappAlerts, setWhatsappAlerts] = useState(() => (localStorage.getItem('nephrocare_whatsapp_enabled') || localStorage.getItem('nephrocare_whatsapp_alerts')) === 'true')
   const [emailAlerts, setEmailAlerts] = useState(() => localStorage.getItem('nephrocare_email_alerts') !== 'false')
 
   // Health prefs
@@ -109,6 +109,9 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
           setProfile(prev => {
             const newProfile = { ...prev, ...data }
             localStorage.setItem('nephrocare_profile', JSON.stringify(newProfile))
+            if (newProfile.phone) {
+              localStorage.setItem('nephrocare_phone', newProfile.phone)
+            }
             return newProfile
           })
           if (data.preferences) {
@@ -195,6 +198,7 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
 
   const saveAll = () => {
     localStorage.setItem('nephrocare_profile', JSON.stringify(profile))
+    localStorage.setItem('nephrocare_phone', profile.phone)
     
     const token = localStorage.getItem('auth_token')
     if (user && token) {
@@ -221,6 +225,7 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
     localStorage.setItem('nephrocare_food_reminder', String(foodReminder))
     localStorage.setItem('nephrocare_lab_reminder', String(labReminder))
     localStorage.setItem('nephrocare_wearable_alerts', String(wearableAlerts))
+    localStorage.setItem('nephrocare_whatsapp_enabled', String(whatsappAlerts))
     localStorage.setItem('nephrocare_whatsapp_alerts', String(whatsappAlerts))
     localStorage.setItem('nephrocare_email_alerts', String(emailAlerts))
     localStorage.setItem('nephrocare_dark_mode', String(darkMode))

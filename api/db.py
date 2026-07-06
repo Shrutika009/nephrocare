@@ -113,6 +113,9 @@ def init_db() -> None:
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             data JSONB NOT NULL
         );
+        """,
+        """
+        ALTER TABLE nephrocare_user_profiles ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{}';
         """
     ]
     

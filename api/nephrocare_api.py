@@ -1780,10 +1780,17 @@ class Handler(BaseHTTPRequestHandler):
                 return
             
             # Format numbers for Twilio
-            # Ensure number has + prefix
-            formatted_to = clean_phone
-            if not formatted_to.startswith('+'):
-                formatted_to = '+' + formatted_to
+            digits = re.sub(r'[^\d]', '', phone)
+            if len(digits) == 10:
+                formatted_to = "+91" + digits
+            elif len(digits) == 11 and digits.startswith('0'):
+                formatted_to = "+91" + digits[1:]
+            elif digits.startswith('91') and len(digits) == 12:
+                formatted_to = "+" + digits
+            else:
+                formatted_to = digits
+                if not formatted_to.startswith('+'):
+                    formatted_to = '+' + formatted_to
             
             # Twilio From must begin with whatsapp:
             formatted_from = from_number
@@ -1821,6 +1828,7 @@ class Handler(BaseHTTPRequestHandler):
                         error_msg += ": " + e.read().decode("utf-8")
                     except Exception:
                         pass
+                print(f"--- TWILIO API SEND ERROR --- \n{error_msg}\n-------------------------")
                 self.respond(200, {
                     "success": False,
                     "code": "API_ERROR",

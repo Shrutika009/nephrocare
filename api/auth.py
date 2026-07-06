@@ -62,6 +62,7 @@ def signup(name: str, email: str, password: str) -> Tuple[Optional[dict[str, Any
             "name": user_data["name"],
             "email": user_data["email"],
         }, token
+    except Exception as e:
         return None, f"Signup failed: {str(e)}"
 
 
