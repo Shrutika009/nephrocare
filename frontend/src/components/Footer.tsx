@@ -156,11 +156,6 @@ export function Footer({ showPage, scrollTo, addToast }: FooterProps) {
             <Phone size={14} /> Support & Contact
           </a>
         </nav>
-        
-        <div className="footer-regulatory">
-          <Shield size={14} />
-          <span>HIPAA Compliant Data Handling</span>
-        </div>
       </div>
     </div>
 

@@ -66,6 +66,26 @@ export function FoodToolsPage({
   loadRecommendations,
   loadMealPlan,
 }: FoodToolsPageProps) {
+  useEffect(() => {
+    const tabs: FoodTab[] = ['scan', 'check', 'recommend', 'plan']
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        const currentIndex = tabs.indexOf(foodTab)
+        if (e.key === 'ArrowRight') {
+          const nextIndex = (currentIndex + 1) % tabs.length
+          setFoodTab(tabs[nextIndex])
+        } else {
+          const prevIndex = (currentIndex - 1 + tabs.length) % tabs.length
+          setFoodTab(tabs[prevIndex])
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [foodTab, setFoodTab])
+
   return <main className="food-page" id="top">
     <button className="back-button food-back-button" onClick={() => showPage('home')}><Icon name="arrow" size={16} /> Back</button>
     <section className="food-hero">

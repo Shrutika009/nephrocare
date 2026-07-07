@@ -578,9 +578,9 @@
     border-radius: 6px;
 }
 
-.food-analysis-card.avoid .food-analysis-top .status-badge {
-    color: var(--maroon);
-    background: rgba(160, 20, 50, 0.1);
+.food-analysis-card.risky .food-analysis-top .status-badge {
+    color: #dc2626;
+    background: rgba(220, 38, 38, 0.1);
     padding: 4px 8px;
     border-radius: 6px;
 }
@@ -598,6 +598,18 @@
 .food-score b {
     font-size: 26px;
     line-height: 1;
+}
+
+.food-analysis-card.safe .food-score b {
+    color: #0b7f72;
+}
+
+.food-analysis-card.moderate .food-score b {
+    color: #a26b00;
+}
+
+.food-analysis-card.risky .food-score b {
+    color: #dc2626;
 }
 
 .food-score small {
