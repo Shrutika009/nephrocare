@@ -2270,14 +2270,18 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    import os
     try:
         from api.db import init_db
         init_db()
     except Exception as e:
         print(f"PostgreSQL database init failed: {e}")
         
-    server = ThreadingHTTPServer(("127.0.0.1", 8000), Handler)
-    print("NephroCare API running at http://127.0.0.1:8000", flush=True)
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", os.environ.get("API_PORT", "8000")))
+    
+    server = ThreadingHTTPServer((host, port), Handler)
+    print(f"NephroCare API running at http://{host}:{port}", flush=True)
     server.serve_forever()
 
 

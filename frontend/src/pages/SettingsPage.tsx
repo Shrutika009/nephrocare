@@ -6,6 +6,7 @@ import {
   Eye, EyeOff, HelpCircle, Info
 } from 'lucide-react'
 import '../styles/settings.css'
+import { API_BASE_URL } from '../constants'
 
 type SettingsSection =
   | 'profile'
@@ -97,8 +98,7 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
   useEffect(() => {
     const token = localStorage.getItem('auth_token')
     if (user && token) {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-      fetch(`${apiUrl}/api/patient/profile`, {
+      fetch(`${API_BASE_URL}/api/patient/profile`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -138,13 +138,12 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
                setLanguage(p.language)
              } else if (p.language !== undefined && localLang && localLang !== p.language) {
                // If backend differs from local, we must sync local to backend to avoid being overwritten on next load
-               const token = localStorage.getItem('auth_token')
-               const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-               fetch(`${apiUrl}/api/patient/profile`, {
-                 method: 'POST',
-                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                 body: JSON.stringify({ ...data, preferences: { ...p, language: localLang } })
-               }).catch(console.error)
+                const token = localStorage.getItem('auth_token')
+                fetch(`${API_BASE_URL}/api/patient/profile`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                  body: JSON.stringify({ ...data, preferences: { ...p, language: localLang } })
+                }).catch(console.error)
              }
              if (p.fluidLimit !== undefined) setFluidLimit(p.fluidLimit)
              if (p.shareWithDoctor !== undefined) setShareWithDoctor(p.shareWithDoctor)
@@ -202,7 +201,6 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
     
     const token = localStorage.getItem('auth_token')
     if (user && token) {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
       const payload = {
         ...profile,
         preferences: {
@@ -211,7 +209,7 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
           dietRestriction, dailyCalories, fluidLimit, shareWithDoctor, anonymousAnalytics, twoFactor
         }
       }
-      fetch(`${apiUrl}/api/patient/profile`, {
+      fetch(`${API_BASE_URL}/api/patient/profile`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -274,8 +272,7 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
     if (!token) return
     
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-      const res = await fetch(`${apiUrl}/api/auth/password`, {
+      const res = await fetch(`${API_BASE_URL}/api/auth/password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

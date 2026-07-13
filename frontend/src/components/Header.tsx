@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { features } from '../constants'
+import { features, API_BASE_URL } from '../constants'
 import type { Page } from '../types'
 import { Icon } from './Icon'
 import { Globe, ChevronDown } from 'lucide-react'
@@ -61,10 +61,9 @@ export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpe
       try {
         const token = localStorage.getItem('auth_token')
         if (token) {
-          const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-          const res = await fetch(`${apiUrl}/api/patient/profile`, { headers: { 'Authorization': `Bearer ${token}` } })
+          const res = await fetch(`${API_BASE_URL}/api/patient/profile`, { headers: { 'Authorization': `Bearer ${token}` } })
           const profile = await res.json()
-          await fetch(`${apiUrl}/api/patient/profile`, {
+          await fetch(`${API_BASE_URL}/api/patient/profile`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ ...profile, preferences: { ...(profile.preferences || {}), language: newLang } })

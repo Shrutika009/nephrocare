@@ -1,6 +1,6 @@
 import { useState, useEffect, type ChangeEvent, type FormEvent } from 'react'
 import { Icon } from '../components/Icon'
-import { labInputLabels, stageOrder } from '../constants'
+import { labInputLabels, stageOrder, API_BASE_URL } from '../constants'
 import type { Page, PredictionForm, PredictionResult, StageProgressionResult } from '../types'
 import { formatPercent, formatValue, modelSourceSummary, reportData, stageGfrBand, stageNumber } from '../utils/format'
 import { downloadPredictionPdf } from '../utils/predictionPdf'
@@ -63,8 +63,7 @@ function PredictionResultView({ result, activeReport, setPredictionStep, showPag
     const fetchStage = async () => {
       setStageLoading(true)
       try {
-        const apiUrl = (import.meta as any).env?.VITE_API_URL || 'http://127.0.0.1:8000'
-        const response = await fetch(`${apiUrl}/api/predict-stage`, {
+        const response = await fetch(`${API_BASE_URL}/api/predict-stage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(result.input),

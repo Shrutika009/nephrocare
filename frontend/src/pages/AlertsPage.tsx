@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Icon } from '../components/Icon'
 import type { Page, WhatsAppLog, ToastType } from '../types'
 import { Bell, Smartphone, Shield, Activity, Clock, Check } from 'lucide-react'
+import { API_BASE_URL } from '../constants'
 import '../styles/alerts.css'
 
 type AlertsPageProps = {
@@ -81,8 +82,7 @@ export function AlertsPage({ showPage, user, addToast }: AlertsPageProps) {
     }
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-      const response = await fetch(`${apiUrl}/api/send-whatsapp`, {
+      const response = await fetch(`${API_BASE_URL}/api/send-whatsapp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -151,8 +151,7 @@ export function DashboardPage({
     }
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-      const response = await fetch(`${apiUrl}/api/send-whatsapp`, {
+      const response = await fetch(`${API_BASE_URL}/api/send-whatsapp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -227,8 +226,7 @@ export function DashboardPage({
     
     const token = localStorage.getItem('auth_token')
     if (user && token) {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-      fetch(`${apiUrl}/api/patient/symptom-logs`, {
+      fetch(`${API_BASE_URL}/api/patient/symptom-logs`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
