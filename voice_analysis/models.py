@@ -55,4 +55,5 @@ class DrugInteraction:
     severity: str  # low, moderate, high, critical
     description: str
     recommendation: str
+    type: Optional[str] = None
     confidence: float = 1.0
