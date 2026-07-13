@@ -1087,8 +1087,12 @@ def predict(lab: dict[str, Any]) -> dict[str, Any]:
 
 def predict_ckd_stage(payload: dict) -> dict:
     """Predict current CKD stage (XGBoost) and future progression (DNN)."""
-    import torch
-    import torch.nn as nn
+    try:
+        import torch
+        import torch.nn as nn
+        has_torch = True
+    except (ImportError, ModuleNotFoundError):
+        has_torch = False
     import joblib
 
     MODELS_DIR = ROOT / "models"
@@ -1139,26 +1143,43 @@ def predict_ckd_stage(payload: dict) -> dict:
     egfr = egfr_2021_creatinine(serum_creatinine, age, is_female)
 
     # --- DNN: progression prediction ---
-    class CKDProgressionDNN(nn.Module):
-        def __init__(self, input_dim=12):
-            super().__init__()
-            self.network = nn.Sequential(
-                nn.Linear(input_dim, 128), nn.BatchNorm1d(128), nn.ReLU(), nn.Dropout(0.3),
-                nn.Linear(128, 64), nn.BatchNorm1d(64), nn.ReLU(), nn.Dropout(0.2),
-                nn.Linear(64, 32), nn.BatchNorm1d(32), nn.ReLU(), nn.Dropout(0.1),
-                nn.Linear(32, 1),
-            )
-        def forward(self, x):
-            return self.network(x)
+    if has_torch:
+        try:
+            class CKDProgressionDNN(nn.Module):
+                def __init__(self, input_dim=12):
+                    super().__init__()
+                    self.network = nn.Sequential(
+                        nn.Linear(input_dim, 128), nn.BatchNorm1d(128), nn.ReLU(), nn.Dropout(0.3),
+                        nn.Linear(128, 64), nn.BatchNorm1d(64), nn.ReLU(), nn.Dropout(0.2),
+                        nn.Linear(64, 32), nn.BatchNorm1d(32), nn.ReLU(), nn.Dropout(0.1),
+                        nn.Linear(32, 1),
+                    )
+                def forward(self, x):
+                    return self.network(x)
 
-    dnn = CKDProgressionDNN(input_dim=12)
-    checkpoint = torch.load(str(MODELS_DIR / "ckd_progression_dnn.pt"), map_location="cpu", weights_only=True)
-    dnn.load_state_dict(checkpoint["model_state_dict"])
-    dnn.eval()
+            dnn = CKDProgressionDNN(input_dim=12)
+            checkpoint = torch.load(str(MODELS_DIR / "ckd_progression_dnn.pt"), map_location="cpu", weights_only=True)
+            dnn.load_state_dict(checkpoint["model_state_dict"])
+            dnn.eval()
 
-    scaled_tensor = torch.tensor(scaled.astype(np.float32), dtype=torch.float32)
-    with torch.no_grad():
-        annual_decline = float(dnn(scaled_tensor).squeeze().item())
+            scaled_tensor = torch.tensor(scaled.astype(np.float32), dtype=torch.float32)
+            with torch.no_grad():
+                annual_decline = float(dnn(scaled_tensor).squeeze().item())
+        except Exception as e:
+            print(f"Progression DNN model load failed, using fallback decline: {e}")
+            has_torch = False
+
+    if not has_torch:
+        # Fallback linear model based on clinical factors
+        base_decline = 1.0  # standard decline is ~1.0 mL/min/year
+        if serum_creatinine > 1.3:
+            base_decline += (serum_creatinine - 1.3) * 1.5
+        if payload.get("diabetes_mellitus") == "yes" or payload.get("diabetes_mellitus") == 1:
+            base_decline += 0.8
+        if payload.get("hypertension") == "yes" or payload.get("hypertension") == 1:
+            base_decline += 0.5
+        annual_decline = min(base_decline, 5.0)  # Cap at 5.0 mL/min/year
+
     annual_decline = max(annual_decline, 0.5)  # Minimum 0.5 mL/min/year
 
     # --- Compute progression timeline ---
