@@ -777,8 +777,13 @@
     }
 }
 
-/* Beautiful Print Styles */
+/* Beautiful 1-Page Print Styles */
 @media print {
+    @page {
+        margin: 10mm;
+        size: A4 portrait;
+    }
+
     /* Hide non-essential layout details */
     .no-print, 
     .dicom-controls-bar, 
@@ -787,7 +792,9 @@
     .btn-premium-secondary,
     .dicom-badges,
     .insight-meta svg,
-    .insight-badge {
+    .insight-badge,
+    header,
+    footer {
         display: none !important;
     }
 
@@ -808,21 +815,50 @@
         box-shadow: none !important;
         text-shadow: none !important;
         filter: none !important;
-        background: transparent !important;
+        color-adjust: exact !important;
+        -webkit-print-color-adjust: exact !important;
     }
 
+    .ultrasound-header {
+        margin-bottom: 15px !important;
+        text-align: center;
+    }
+
+    .ultrasound-header h1 {
+        font-size: 24px !important;
+        margin-bottom: 4px !important;
+    }
+
+    .ultrasound-header .subtitle {
+        font-size: 12px !important;
+        margin: 0 auto !important;
+    }
+
+    /* 2-column grid for print */
     .luxury-dashboard-grid {
-        display: block !important;
-        width: 100% !important;
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 15px !important;
     }
 
     .dicom-panel, 
     .diagnosis-panel {
-        width: 100% !important;
-        display: block !important;
-        float: none !important;
-        page-break-inside: avoid;
-        margin-bottom: 24px !important;
+        display: contents !important;
+    }
+
+    .dicom-card,
+    .risk-card {
+        grid-column: span 1 !important;
+    }
+
+    /* Make the Clinical Recommendations box span full width at the bottom */
+    .diagnosis-panel > .luxury-card:not(.risk-card) {
+        grid-column: span 2 !important;
+    }
+
+    /* Hide CNN Matrix in print to save space */
+    .dicom-panel > .luxury-card {
+        display: none !important;
     }
 
     /* Re-style cards for print aesthetics */
@@ -831,62 +867,111 @@
         background: #ffffff !important;
         color: #000000 !important;
         border: 1px solid #cbd5e1 !important;
-        border-radius: 12px !important;
-        padding: 20px !important;
-        margin-bottom: 20px !important;
+        border-radius: 8px !important;
+        padding: 12px !important;
+        margin-bottom: 0 !important;
         page-break-inside: avoid;
+    }
+
+    .dicom-header {
+        margin-bottom: 10px !important;
+        padding-bottom: 8px !important;
     }
 
     .dicom-viewport {
         background: #ffffff !important;
         border: 1px solid #e2e8f0 !important;
-        padding: 8px !important;
+        padding: 4px !important;
+        min-height: auto !important;
     }
 
     .dicom-viewport img {
-        max-height: 250px !important;
+        max-height: 200px !important;
         display: block !important;
         margin: 0 auto !important;
         border: 1px solid #cbd5e1 !important;
-        border-radius: 6px !important;
+        border-radius: 4px !important;
     }
 
     .dicom-title-box h3 {
         color: #000000 !important;
-        font-size: 16px !important;
+        font-size: 14px !important;
+        margin: 0 !important;
+    }
+
+    /* Make gauge smaller */
+    .circular-gauge-container {
+        width: 100px !important;
+        height: 100px !important;
+        margin: 0 auto 10px auto !important;
+    }
+
+    .circular-gauge-container svg {
+        width: 100px !important;
+        height: 100px !important;
+    }
+
+    .gauge-pct {
+        font-size: 20px !important;
+    }
+
+    .gauge-lbl {
+        font-size: 9px !important;
+    }
+
+    .badge-severity {
+        font-size: 11px !important;
+        padding: 4px 10px !important;
+        margin-bottom: 10px !important;
     }
 
     /* Expand insight cards and show all details by default on print */
+    .observations-wrapper {
+        gap: 8px !important;
+    }
+
     .insight-card {
         border: 1px solid #e2e8f0 !important;
-        margin-bottom: 10px !important;
         background: #ffffff !important;
         page-break-inside: avoid;
+        border-radius: 6px !important;
+    }
+    
+    .insight-header {
+        padding: 8px 12px !important;
+    }
+    
+    .insight-title {
+        font-size: 12px !important;
     }
 
     .insight-content {
         display: block !important;
-        padding: 12px 16px !important;
+        padding: 8px 12px !important;
         border-top: 1px solid #e2e8f0 !important;
         color: #334155 !important;
+        font-size: 11px !important;
     }
 
     .clinical-significance {
         background: #f8fafc !important;
         border-left: 3px solid #64748b !important;
-        margin-top: 8px !important;
+        margin-top: 6px !important;
+        padding: 6px 10px !important;
+        font-size: 10px !important;
     }
 
     /* Ensure visual readability of recommendations */
     .visuals-grid {
         display: grid !important;
         grid-template-columns: 1fr 1fr !important;
-        gap: 16px !important;
-        margin-top: 16px !important;
+        gap: 10px !important;
+        margin-top: 10px !important;
     }
 
     .mini-visual-card {
         border: 1px solid #cbd5e1 !important;
         background: #ffffff !important;
+        padding: 10px !important;
     }
 }

@@ -569,7 +569,7 @@ export function UltrasoundPage({
               </span>
 
               <div className="circular-gauge-container">
-                <svg width="160" height="160">
+                <svg width="160" height="160" viewBox="0 0 160 160">
                   <circle className="circular-gauge-bg" cx="80" cy="80" r="70" />
                   <circle 
                     className="circular-gauge-fill" 

@@ -2038,7 +2038,7 @@ class Handler(BaseHTTPRequestHandler):
                 image_path.write_bytes(uploaded["data"])
                 try:
                     import sys
-                    sys.path.append(str(ROOT / "frontend"))
+                    sys.path.append(str(ROOT / "scripts"))
                     
                     # 1. Run CNN Deep Learning analysis first
                     cnn_result = {}
