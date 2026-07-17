@@ -1,15 +1,38 @@
 .footer-container {
-    background: #083b66;
-    border-top: 5px solid #052a49;
+    background: url('/footer_bg.jpg') no-repeat center center;
+    background-size: cover;
     color: #fff;
     font-family: 'Raleway', sans-serif;
+    position: relative;
+    padding: 30px 0 0 0; /* Reduced padding from 60px */
+}
+
+.footer-container::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, rgba(5, 42, 73, 0.4), rgba(5, 42, 73, 0.8));
+    pointer-events: none;
+}
+
+.footer-glass-card {
+    position: relative;
+    z-index: 1;
+    background: rgba(10, 15, 25, 0.75);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    max-width: 1200px;
+    margin: 0 auto 20px auto; /* Reduced bottom margin from 40px */
+    padding: 25px; /* Reduced padding from 40px */
+    width: 92%;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
 }
 
 .footer-main {
-    padding: 60px clamp(24px, 7vw, 108px) 30px;
     display: grid;
-    grid-template-columns: minmax(280px, 1.8fr) repeat(3, minmax(180px, 1fr));
-    gap: clamp(24px, 5vw, 60px);
+    grid-template-columns: minmax(260px, 1.8fr) repeat(3, minmax(160px, 1fr));
+    gap: clamp(16px, 3vw, 40px); /* Reduced gap */
     align-items: start;
 }
 
@@ -204,30 +227,39 @@
 }
 
 /* Social Media Icons */
+.footer-social-bar {
+    margin-top: 20px; /* Reduced from 40px */
+    width: 100%;
+}
+
+.footer-divider {
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    margin: 0 0 15px 0; /* Reduced bottom margin from 20px */
+}
+
 .footer-socials {
     display: flex;
-    gap: 12px;
-    margin-top: 15px;
+    gap: 16px;
+    justify-content: flex-end; /* Align right like OpenMRS */
 }
 
 .footer-socials a {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 36px; /* Reduced from 40px */
+    height: 36px; /* Reduced from 40px */
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.85);
+    background: transparent;
+    color: rgba(255, 255, 255, 0.6);
     transition: all 0.2s ease;
     text-decoration: none;
 }
 
 .footer-socials a:hover {
-    background: #236d9f;
     color: #fff;
     transform: translateY(-3px);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
 }
 
 /* Regulatory Info */
@@ -238,7 +270,7 @@
     font-size: 11px;
     color: rgba(255, 255, 255, 0.6);
     font-weight: 700;
-    margin-top: 10px;
+    margin-top: 8px; /* Reduced from 10px */
     letter-spacing: 0.5px;
     text-transform: uppercase;
 }
@@ -249,13 +281,13 @@
 
 /* Medical Disclaimer Banner */
 .footer-disclaimer-banner {
-    margin: 10px clamp(24px, 7vw, 108px) 30px;
-    padding: 20px 24px;
+    margin: 10px clamp(24px, 7vw, 108px) 20px; /* Reduced bottom margin from 30px */
+    padding: 16px 20px; /* Reduced from 20px 24px */
     background: rgba(255, 255, 255, 0.03);
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.07);
     display: flex;
-    gap: 20px;
+    gap: 16px; /* Reduced from 20px */
     align-items: flex-start;
 }
 
@@ -266,9 +298,9 @@
 }
 
 .disclaimer-content h5 {
-    margin: 0 0 6px 0;
+    margin: 0 0 4px 0; /* Reduced from 6px */
     color: rgba(255, 255, 255, 0.95);
-    font-size: 14px;
+    font-size: 13px; /* Reduced from 14px */
     font-weight: 700;
     letter-spacing: 0.5px;
     text-transform: uppercase;
@@ -276,8 +308,8 @@
 
 .disclaimer-content p {
     margin: 0;
-    font-size: 13px;
-    line-height: 1.65;
+    font-size: 12px; /* Reduced from 13px */
+    line-height: 1.5; /* Reduced from 1.65 */
     color: rgba(255, 255, 255, 0.68);
 }
 
@@ -287,14 +319,14 @@
 
 /* Footer Bottom copyright & secondary links */
 .footer-bottom {
-    padding: 24px clamp(24px, 7vw, 108px);
+    padding: 16px clamp(24px, 7vw, 108px); /* Reduced padding */
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 24px;
+    gap: 20px; /* Reduced from 24px */
     background: #062f52;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
-    font-size: 13px;
+    font-size: 12px; /* Reduced from 13px */
     font-weight: 600;
 }
 
