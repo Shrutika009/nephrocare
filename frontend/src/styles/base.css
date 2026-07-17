@@ -666,3 +666,166 @@ html, body, .settings-page, .settings-content, .settings-sidebar,
     0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
     30%            { transform: translateY(-5px); opacity: 1; }
 }
+
+/* Mobile Bottom Navigation */
+.mobile-bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--line);
+    padding: 10px 16px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    z-index: 50;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
+}
+
+.mobile-nav-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: none;
+    color: #64748B;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px;
+    border-radius: 12px;
+    min-width: 56px;
+    transition: all 0.2s ease;
+}
+
+.mobile-nav-btn svg {
+    transition: transform 0.2s ease, stroke-width 0.2s;
+}
+
+.mobile-nav-btn:active {
+    background: #F1F5F9;
+}
+
+.mobile-nav-btn.active {
+    color: var(--maroon);
+}
+
+.mobile-nav-btn.active svg {
+    stroke-width: 2.5;
+    transform: translateY(-2px);
+}
+
+/* Unique Active Colors for Bottom Nav */
+.mobile-nav-btn.home-btn.active { color: #2563eb; } /* Blue */
+.mobile-nav-btn.risk-btn.active { color: #e11d48; } /* Rose/Red */
+.mobile-nav-btn.diet-btn.active { color: #16a34a; } /* Green */
+.mobile-nav-btn.settings-btn.active { color: #f59e0b; } /* Amber/Orange */
+.mobile-nav-btn.dash-btn.active { color: #7c3aed; } /* Purple */
+
+/* Mobile FAB for AI Assist */
+.mobile-fab-ai {
+    display: none;
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    background: var(--blue);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 26px;
+    z-index: 100;
+    box-shadow: 0 8px 24px rgba(7, 95, 168, 0.4);
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.mobile-login-btn {
+    display: none;
+    background: var(--maroon);
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s ease, transform 0.2s ease;
+    letter-spacing: 0.3px;
+}
+
+.mobile-fab-ai:active {
+    transform: scale(0.9);
+}
+
+/* ─── Chatbot Base Styles ─── */
+.chatbot-container {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 28px;
+    min-height: calc(100vh - 120px);
+}
+
+.chatbot-main-card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 24px;
+}
+
+.chatbot-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 16px;
+    margin-bottom: 16px;
+}
+
+.chatbot-title-area h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #083b66;
+    margin: 0;
+    font-size: 22px;
+}
+
+.chatbot-title-area h2 span {
+    color: var(--blue);
+    display: inline-flex;
+}
+
+.chatbot-title-area p {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: #64748b;
+}
+
+.chatbot-lang-select {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.chatbot-lang-select label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+}
+
+.chatbot-lang-select select {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    font-size: 13px;
+    cursor: pointer;
+    background: white;
+}

@@ -672,6 +672,59 @@ export function DashboardPage({
           height: 100%;
           border-radius: 3px;
         }
+
+        /* Responsive Symptom Tracker */
+        .symptom-row {
+          display: flex;
+          gap: 8px;
+          justify-content: space-between;
+          align-items: center;
+          padding: 8px 0;
+          border-bottom: 1px solid #f1f5f9;
+        }
+        .symptom-name {
+          font-size: 13px;
+          font-weight: 700;
+          color: #475569;
+          text-transform: capitalize;
+        }
+        .symptom-buttons {
+          display: flex;
+          gap: 4px;
+        }
+        .symptom-btn {
+          border: none;
+          font-size: 10px;
+          padding: 4px 10px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-weight: 700;
+          transition: all 0.2s;
+        }
+        .btn-full { display: none; }
+        .btn-short { display: inline; }
+
+        @media (max-width: 600px) {
+          .symptom-row {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px 0;
+          }
+          .symptom-buttons {
+            width: 100%;
+            justify-content: space-between;
+            gap: 8px;
+          }
+          .symptom-btn {
+            flex: 1;
+            padding: 10px !important;
+            font-size: 13px !important;
+            border-radius: 8px;
+          }
+          .btn-short { display: none; }
+          .btn-full { display: inline; }
+        }
       `}</style>
 
       {/* RIGHT MAIN CONTENT AREA */}
@@ -1322,9 +1375,9 @@ export function DashboardPage({
                 if (symp === 'urinationChanges') displayName = 'urination changes'
 
                 return (
-                  <div key={symp} style={{ display: 'flex', gap: '8px', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569', textTransform: 'capitalize' }}>{displayName}</span>
-                    <div style={{ display: 'flex', gap: '4px' }}>
+                  <div key={symp} className="symptom-row">
+                    <span className="symptom-name">{displayName}</span>
+                    <div className="symptom-buttons">
                       {['none', 'mild', 'severe'].map((sev) => {
                         const active = currentVal === sev
                         return (
@@ -1332,18 +1385,14 @@ export function DashboardPage({
                             key={sev}
                             type="button"
                             onClick={() => handleSymptomChange(sKey, sev as any)}
+                            className="symptom-btn"
                             style={{
-                              border: 'none',
-                              fontSize: '10px',
-                              padding: '3px 8px',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              fontWeight: 'bold',
                               background: active ? (sev === 'none' ? '#cbd5e1' : sev === 'mild' ? '#dcfce7' : '#fee2e2') : '#f1f5f9',
                               color: active ? (sev === 'none' ? '#0f172a' : sev === 'mild' ? '#15803d' : '#b91c1c') : '#64748b'
                             }}
                           >
-                            {sev === 'none' ? 'N' : sev === 'mild' ? 'M' : 'S'}
+                            <span className="btn-short">{sev === 'none' ? 'N' : sev === 'mild' ? 'M' : 'S'}</span>
+                            <span className="btn-full">{sev === 'none' ? 'None' : sev === 'mild' ? 'Mild' : 'Severe'}</span>
                           </button>
                         )
                       })}

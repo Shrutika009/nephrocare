@@ -104,68 +104,71 @@ export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpe
       <button className="nav-link" onClick={() => scrollTo('resources')}>Resources</button>
       <button className="nav-link" onClick={() => showPage('wearable')}>Wearable Twin</button>
     </nav>
-    <div className="header-actions">
-      <button className="signup-button dashboard-tab" onClick={() => showPage('chatbot')} style={{marginRight: '12px', background: '#236d9f', borderColor: '#236d9f'}}>AI Assistant</button>
-      {user ? (
-        <div className="user-profile-container" ref={dropdownRef} style={{ position: 'relative' }}>
-          <div className="user-profile" onClick={() => setUserMenuOpen(!userMenuOpen)} style={{ cursor: 'pointer', userSelect: 'none' }}>
-            <div className="user-avatar" title={user.email}>
-              {user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+    <div className="header-right-container" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div className="header-actions">
+        <button className="signup-button dashboard-tab" onClick={() => showPage('chatbot')} style={{marginRight: '12px', background: '#236d9f', borderColor: '#236d9f'}}>AI Assistant</button>
+        {user ? (
+          <div className="user-profile-container" ref={dropdownRef} style={{ position: 'relative' }}>
+            <div className="user-profile" onClick={() => setUserMenuOpen(!userMenuOpen)} style={{ cursor: 'pointer', userSelect: 'none' }}>
+              <div className="user-avatar" title={user.email}>
+                {user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+              </div>
+              <span className="user-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {user.name}
+                <span className="profile-chevron" style={{ fontSize: '10px', opacity: 0.6, transition: 'transform 0.2s', display: 'inline-block', transform: userMenuOpen ? 'rotate(180deg)' : 'none' }}>▼</span>
+              </span>
             </div>
-            <span className="user-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              {user.name}
-              <span className="profile-chevron" style={{ fontSize: '10px', opacity: 0.6, transition: 'transform 0.2s', display: 'inline-block', transform: userMenuOpen ? 'rotate(180deg)' : 'none' }}>▼</span>
-            </span>
+            {userMenuOpen && (
+              <div className="user-dropdown">
+                <button 
+                  type="button" 
+                  className="dropdown-logout-btn"
+                  style={{ color: '#236d9f', borderBottom: '1px solid #F1F5F9', marginBottom: '4px' }}
+                  onClick={() => {
+                    showPage('settings');
+                    setUserMenuOpen(false);
+                  }}
+                >
+                  <Icon name="settings" size={16} /> Settings
+                </button>
+                <button 
+                  type="button" 
+                  className="dropdown-logout-btn" 
+                  onClick={() => {
+                    onLogout();
+                    setUserMenuOpen(false);
+                  }}
+                >
+                  <Icon name="log-out" size={16} /> Log out
+                </button>
+              </div>
+            )}
           </div>
-          {userMenuOpen && (
-            <div className="user-dropdown">
-              <button 
-                type="button" 
-                className="dropdown-logout-btn"
-                style={{ color: '#236d9f', borderBottom: '1px solid #F1F5F9', marginBottom: '4px' }}
-                onClick={() => {
-                  showPage('settings');
-                  setUserMenuOpen(false);
-                }}
-              >
-                <Icon name="settings" size={16} /> Settings
-              </button>
-              <button 
-                type="button" 
-                className="dropdown-logout-btn" 
-                onClick={() => {
-                  onLogout();
-                  setUserMenuOpen(false);
-                }}
-              >
-                <Icon name="log-out" size={16} /> Log out
-              </button>
-            </div>
-          )}
-        </div>
-      ) : (
-        <>
-          <button type="button" className="signup-button" onClick={() => showPage('login')}>Login / Sign up</button>
-        </>
-      )}
-      <div className="lang-dropdown-container" ref={langDropdownRef} style={{ position: 'relative', marginLeft: '12px' }}>
+        ) : (
+          <>
+            <button type="button" className="signup-button" onClick={() => showPage('login')}>Login / Sign up</button>
+          </>
+        )}
+      </div>
+
+      <div className="lang-dropdown-container" ref={langDropdownRef} style={{ position: 'relative' }}>
         <button 
           onClick={() => setLangMenuOpen(!langMenuOpen)}
           style={{
-            display: 'flex', alignItems: 'center', gap: '6px',
-            padding: '6px 12px',
+            display: 'flex', alignItems: 'center', gap: '4px',
+            padding: '6px 10px',
             borderRadius: '20px',
             border: '1px solid #E2E8F0',
             background: '#F8FAFC',
-            fontSize: '13px',
-            fontWeight: 500,
+            fontSize: '12px',
+            fontWeight: 600,
             color: '#334155',
             cursor: 'pointer',
           }}
         >
-          <Globe size={16} />
-          {LANGUAGES[language] || 'EN'}
-          <ChevronDown size={14} style={{ opacity: 0.7, transform: langMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+          <Globe size={14} />
+          {LANGUAGES[language] ? LANGUAGES[language].substring(0,2).toUpperCase() : 'EN'}
+          <ChevronDown size={12} style={{ opacity: 0.7, transform: langMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
         </button>
         
         {langMenuOpen && (
@@ -173,7 +176,7 @@ export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpe
             position: 'absolute', top: 'calc(100% + 4px)', right: 0,
             background: 'white', borderRadius: '8px',
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)', border: '1px solid #E2E8F0',
-            minWidth: '120px', padding: '6px', zIndex: 100,
+            minWidth: '110px', padding: '6px', zIndex: 100,
             display: 'flex', flexDirection: 'column', gap: '2px',
             maxHeight: '300px', overflowY: 'auto'
           }}>
@@ -206,8 +209,25 @@ export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpe
           </div>
         )}
       </div>
+
+      {!user && (
+        <button 
+          className="mobile-login-btn" 
+          onClick={() => { showPage('login'); setMobileOpen(false); }}
+        >
+          Login/Signup
+        </button>
+      )}
+      {user && (
+        <button 
+          className="mobile-login-btn mobile-user-btn" 
+          onClick={() => { setUserMenuOpen(!userMenuOpen); }}
+        >
+          {user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+        </button>
+      )}
+      <button className="mobile-menu" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Toggle menu"><Icon name={mobileOpen ? 'x' : 'menu'} /></button>
     </div>
-    <button className="mobile-menu" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Toggle menu"><Icon name={mobileOpen ? 'x' : 'menu'} /></button>
 
     {featuresOpen && <div className="mega-menu">
       <div className="mega-links">

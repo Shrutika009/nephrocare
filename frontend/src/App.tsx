@@ -1,7 +1,8 @@
 import type { ChangeEvent, FormEvent } from 'react'
 import { useState } from 'react'
-import { Footer } from './components/Footer'
 import { Header } from './components/Header'
+import { Footer } from './components/Footer'
+import { MobileBottomNav } from './components/MobileBottomNav'
 import { Icon } from './components/Icon'
 import { API_BASE_URL, blankPredictionForm, initialPredictionForm, numericPredictionKeys } from './constants'
 import { FoodToolsPage, type FoodStage, type FoodTab, type YesNo } from './pages/FoodToolsPage'
@@ -614,6 +615,7 @@ function App() {
     />}
 
     <Footer showPage={showPage} scrollTo={scrollTo} addToast={addToast} />
+    <MobileBottomNav showPage={showPage} currentPage={page} />
   </div>
 }
 

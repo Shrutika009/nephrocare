@@ -771,27 +771,26 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
   }
 
   return (
-    <div className="wearable-page-container" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '28px', minHeight: 'calc(100vh - 120px)' }}>
+    <div className="wearable-page-container chatbot-container">
       {/* LEFT COLUMN: Main Chat Interface */}
-      <div className="wearable-card" style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '24px' }}>
+      <div className="wearable-card chatbot-main-card">
         {/* Header bar */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', marginBottom: '16px' }}>
-          <div>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#083b66', margin: 0, fontSize: '22px' }}>
-              <span style={{ color: 'var(--blue)', display: 'inline-flex' }}><Icon name="activity" size={24} /></span>
+        <div className="chatbot-header">
+          <div className="chatbot-title-area">
+            <h2>
+              <span><Icon name="activity" size={24} /></span>
               AI Nephrology Assistant
             </h2>
-            <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
+            <p>
               KDIGO-compliant medical support. (Education only, not diagnostics)
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>Language:</label>
+          <div className="chatbot-lang-select">
+            <label>Language:</label>
             <select
               value={selectedLang}
               onChange={e => handleLangChange(e.target.value)}
-              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', cursor: 'pointer', background: 'white' }}
             >
               {LANGUAGES.map(lang => (
                 <option key={lang.code} value={lang.code}>{lang.name}</option>
@@ -811,7 +810,7 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
 
 
         {/* Chat Balloon History */}
-        <div style={{ flex: 1, overflowY: 'auto', paddingRight: '6px', marginBottom: '16px', minHeight: '350px', maxHeight: '550px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div className="chatbot-history">
           {messages.map((msg, index) => (
             <div key={index} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
               <div style={{
@@ -898,121 +897,124 @@ export function ChatbotPage({ showPage, user, form }: ChatbotPageProps) {
           <div ref={chatEndRef} />
         </div>
 
-        {/* Quick replies */}
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
-          {(QUICK_REPLIES_MAP[selectedLang] || QUICK_REPLIES_MAP['en']).map((reply: string, i: number) => (
-            <button
-              key={i}
-              type="button"
-              disabled={loading}
-              onClick={() => handleSendMessage(reply)}
-              style={{
-                background: '#f1f5f9',
-                border: '1px solid #cbd5e1',
-                padding: '6px 12px',
-                borderRadius: '16px',
-                fontSize: '12.5px',
-                color: '#334155',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-              className="quick-reply-chip"
-            >
-              {reply}
-            </button>
-          ))}
-        </div>
-
-        {/* Input box */}
-        {voiceError && (
-          <div style={{ marginBottom: '8px', padding: '8px 12px', background: '#fee2e2', borderRadius: '8px', fontSize: '12.5px', color: '#dc2626', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>{voiceError}</span>
-            <button onClick={() => setVoiceError(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontWeight: 700, fontSize: '14px', lineHeight: 1 }}>✕</button>
+        {/* Chat Footer Container (Quick Replies & Input) */}
+        <div className="chatbot-footer" style={{ flexShrink: 0 }}>
+          {/* Quick replies */}
+          <div className="chatbot-quick-replies" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
+            {(QUICK_REPLIES_MAP[selectedLang] || QUICK_REPLIES_MAP['en']).map((reply: string, i: number) => (
+              <button
+                key={i}
+                type="button"
+                disabled={loading}
+                onClick={() => handleSendMessage(reply)}
+                style={{
+                  background: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
+                  padding: '6px 12px',
+                  borderRadius: '16px',
+                  fontSize: '12.5px',
+                  color: '#334155',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                className="quick-reply-chip"
+              >
+                {reply}
+              </button>
+            ))}
           </div>
-        )}
-        <form onSubmit={e => { e.preventDefault(); handleSendMessage(input) }} style={{ display: 'flex', gap: '10px' }}>
-          <div style={{ position: 'relative', flex: 1 }}>
-            <input
-              type="text"
-              value={input}
-              disabled={loading}
-              onChange={e => setInput(e.target.value)}
-              placeholder={isListening ? 'Listening... speak now' : 'Ask about guidelines, potassium levels, drug safety, stage details...'}
-              style={{
-                width: '100%',
-                padding: '12px 50px 12px 16px',
-                borderRadius: '10px',
-                border: isListening ? '2px solid #ef4444' : '1px solid #cbd5e1',
-                fontSize: '14px',
-                outline: 'none',
-                boxSizing: 'border-box',
-                transition: 'border-color 0.2s'
-              }}
-            />
-            {/* Mic button inside input */}
+
+          {/* Input box */}
+          {voiceError && (
+            <div style={{ marginBottom: '8px', padding: '8px 12px', background: '#fee2e2', borderRadius: '8px', fontSize: '12.5px', color: '#dc2626', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>{voiceError}</span>
+              <button onClick={() => setVoiceError(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontWeight: 700, fontSize: '14px', lineHeight: 1 }}>✕</button>
+            </div>
+          )}
+          <form onSubmit={e => { e.preventDefault(); handleSendMessage(input) }} style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <input
+                type="text"
+                value={input}
+                disabled={loading}
+                onChange={e => setInput(e.target.value)}
+                placeholder={isListening ? 'Listening... speak now' : 'Ask about guidelines, potassium levels...'}
+                style={{
+                  width: '100%',
+                  padding: '12px 50px 12px 16px',
+                  borderRadius: '10px',
+                  border: isListening ? '2px solid #ef4444' : '1px solid #cbd5e1',
+                  fontSize: '14px',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  transition: 'border-color 0.2s'
+                }}
+              />
+              {/* Mic button inside input */}
+              <button
+                type="button"
+                title={isListening ? 'Stop listening' : `Voice input (${LANG_TO_BCP47[selectedLang] || 'en-IN'})`}
+                onClick={isListening ? stopListening : startListening}
+                disabled={loading}
+                style={{
+                  position: 'absolute',
+                  right: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: isListening ? '#ef4444' : 'transparent',
+                  border: isListening ? 'none' : '1px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '5px 7px',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: isListening ? 'white' : '#475569',
+                  transition: 'all 0.2s',
+                  boxShadow: isListening ? '0 0 0 4px rgba(239,68,68,0.2)' : 'none',
+                  animation: isListening ? 'micPulse 1s ease-in-out infinite' : 'none'
+                }}
+              >
+                {isListening ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="6" width="12" height="12" rx="2" />
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="23"/>
+                    <line x1="8" y1="23" x2="16" y2="23"/>
+                  </svg>
+                )}
+              </button>
+            </div>
             <button
-              type="button"
-              title={isListening ? 'Stop listening' : `Voice input (${LANG_TO_BCP47[selectedLang] || 'en-IN'})`}
-              onClick={isListening ? stopListening : startListening}
-              disabled={loading}
+              type="submit"
+              disabled={loading || !input.trim()}
               style={{
-                position: 'absolute',
-                right: '10px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: isListening ? '#ef4444' : 'transparent',
-                border: isListening ? 'none' : '1px solid #cbd5e1',
-                borderRadius: '8px',
-                padding: '5px 7px',
-                cursor: loading ? 'not-allowed' : 'pointer',
+                background: 'var(--blue)',
+                color: 'white',
+                border: 'none',
+                padding: '12px 24px',
+                borderRadius: '10px',
+                fontWeight: 600,
+                fontSize: '14px',
+                cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                color: isListening ? 'white' : '#475569',
-                transition: 'all 0.2s',
-                boxShadow: isListening ? '0 0 0 4px rgba(239,68,68,0.2)' : 'none',
-                animation: isListening ? 'micPulse 1s ease-in-out infinite' : 'none'
+                gap: '6px'
               }}
             >
-              {isListening ? (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="6" y="6" width="12" height="12" rx="2" />
-                </svg>
-              ) : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                  <line x1="12" y1="19" x2="12" y2="23"/>
-                  <line x1="8" y1="23" x2="16" y2="23"/>
-                </svg>
-              )}
+              Send
+              <Icon name="arrow" size={16} />
             </button>
-          </div>
-          <button
-            type="submit"
-            disabled={loading || !input.trim()}
-            style={{
-              background: 'var(--blue)',
-              color: 'white',
-              border: 'none',
-              padding: '12px 24px',
-              borderRadius: '10px',
-              fontWeight: 600,
-              fontSize: '14px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
-            Send
-            <Icon name="arrow" size={16} />
-          </button>
-        </form>
+          </form>
+        </div>
       </div>
 
       {/* RIGHT COLUMN: Interactive Patient Context Dashboard */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div className="chatbot-sidebar" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <section className="wearable-card" style={{ padding: '20px' }}>
           <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#083b66', margin: '0 0 16px', fontSize: '18px' }}>
             <span style={{ color: 'var(--green)', display: 'inline-flex' }}><Icon name="file-text" size={20} /></span>
