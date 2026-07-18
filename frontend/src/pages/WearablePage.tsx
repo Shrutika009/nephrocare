@@ -377,6 +377,36 @@ export function WearablePage() {
     ir: null
   })
 
+  const [liveChartData, setLiveChartData] = useState<any[]>([])
+
+  const handleNewTelemetry = (data: any) => {
+    const isFinger = data.fingerDetected === true || data.fingerDetected === 1 || (data.ir !== undefined && data.ir !== null && parseInt(data.ir) > 25000);
+    const parsedData = {
+      temperature: data.temperature !== undefined && data.temperature !== null ? parseFloat(data.temperature) : null,
+      heartRate: isFinger && data.heartRate !== undefined && data.heartRate !== null ? parseInt(data.heartRate) : null,
+      spo2: isFinger && data.spo2 !== undefined && data.spo2 !== null ? parseInt(data.spo2) : null,
+      fingerDetected: isFinger,
+      ir: data.ir !== undefined && data.ir !== null ? parseInt(data.ir) : null
+    }
+
+    setBleData(parsedData)
+
+    if (parsedData.heartRate !== null || parsedData.spo2 !== null || parsedData.temperature !== null) {
+      setLiveChartData(prev => {
+        const next = [...prev, {
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          heartRate: parsedData.heartRate,
+          spo2: parsedData.spo2,
+          temperature: parsedData.temperature
+        }]
+        if (next.length > 30) next.shift()
+        return next
+      })
+    }
+
+    postHardwareTelemetry(parsedData.heartRate, parsedData.spo2, parsedData.temperature)
+  }
+
   // Connect to ESP32 Wearable BLE
   const connectBluetooth = async () => {
     if (!isBluetoothSupported) {
@@ -386,6 +416,7 @@ export function WearablePage() {
     }
     setBluetoothStatus('connecting')
     setError('')
+    setLiveChartData([])
     let buffer = ''
 
     try {
@@ -428,16 +459,7 @@ export function WearablePage() {
           if (line.trim()) {
             try {
               const data = JSON.parse(line.trim())
-              setBleData({
-                temperature: data.temperature,
-                heartRate: data.heartRate,
-                spo2: data.spo2,
-                fingerDetected: !!data.fingerDetected,
-                ir: data.ir
-              })
-
-              // Send update to the backend telemetry to sync history/graphs
-              postHardwareTelemetry(data.heartRate, data.spo2, data.temperature)
+              handleNewTelemetry(data)
             } catch (err) {
               console.error('Failed to parse BLE JSON telemetry:', line, err)
             }
@@ -460,32 +482,63 @@ export function WearablePage() {
       setBluetoothStatus('error')
       return
     }
+
+    // Clean up any stale readers or open ports first
+    try {
+      if (serialReader) {
+        await serialReader.cancel()
+        serialReader.releaseLock()
+      }
+    } catch (e) {}
+    try {
+      if (serialPort) {
+        await serialPort.close()
+      }
+    } catch (e) {}
+
+    setSerialReader(null)
+    setSerialPort(null)
     setBluetoothStatus('connecting')
     setError('')
+    setLiveChartData([])
 
     try {
       const port = await (navigator as any).serial.requestPort()
-      await port.open({ baudRate: 115200 })
+      try {
+        await port.open({ baudRate: 115200 })
+      } catch (openErr: any) {
+        if (openErr.message.includes('already open')) {
+          try {
+            await port.close()
+            await port.open({ baudRate: 115200 })
+          } catch (closeErr) {
+            console.error('Failed to reset port:', closeErr)
+            throw openErr
+          }
+        } else {
+          throw openErr
+        }
+      }
       setSerialPort(port)
       setConnectionType('serial')
 
       // Start asynchronous reading loop
       setTimeout(async () => {
         try {
-          const textDecoder = new TextDecoderStream()
-          port.readable.pipeTo(textDecoder.writable)
-          const reader = textDecoder.readable.getReader()
+          const reader = port.readable.getReader()
           setSerialReader(reader)
           setBluetoothStatus('connected')
-
+          const decoder = new TextDecoder('utf-8')
           let buffer = ''
+
           while (true) {
             const { value, done } = await reader.read()
             if (done) {
               break
             }
             if (value) {
-              buffer += value
+              const chunk = decoder.decode(value, { stream: true })
+              buffer += chunk
               const lines = buffer.split('\n')
               buffer = lines.pop() || ''
 
@@ -493,14 +546,7 @@ export function WearablePage() {
                 if (line.trim()) {
                   try {
                     const data = JSON.parse(line.trim())
-                    setBleData({
-                      temperature: data.temperature,
-                      heartRate: data.heartRate,
-                      spo2: data.spo2,
-                      fingerDetected: !!data.fingerDetected,
-                      ir: data.ir
-                    })
-                    postHardwareTelemetry(data.heartRate, data.spo2, data.temperature)
+                    handleNewTelemetry(data)
                   } catch (e) {
                     console.error('Failed to parse Serial JSON:', line, e)
                   }
@@ -542,13 +588,31 @@ export function WearablePage() {
     }
   }
 
-  const onDeviceDisconnected = () => {
+  const onDeviceDisconnected = async () => {
     setBluetoothStatus('disconnected')
     setConnectionType(null)
     setBleDevice(null)
     setBleCharacteristic(null)
-    setSerialPort(null)
-    setSerialReader(null)
+
+    if (serialReader) {
+      try {
+        await serialReader.cancel()
+        serialReader.releaseLock()
+      } catch (e) {
+        console.error('Error releasing reader lock:', e)
+      }
+      setSerialReader(null)
+    }
+
+    if (serialPort) {
+      try {
+        await serialPort.close()
+      } catch (e) {
+        console.error('Error closing port:', e)
+      }
+      setSerialPort(null)
+    }
+
     setBleData({
       temperature: null,
       heartRate: null,
@@ -617,7 +681,7 @@ export function WearablePage() {
 
   const current = telemetry?.current
   const history = telemetry?.history || []
-  const isHardwareActive = bluetoothStatus === 'connected' || !!(telemetry as any)?.hardware_active
+  const isHardwareActive = bluetoothStatus === 'connected' || !!telemetry?.hardware_active
 
   if (loading) {
     return (
@@ -639,22 +703,48 @@ export function WearablePage() {
     formattedHR: `${item.heart_rate} bpm`
   }))
 
+  // Unified live variables (only show values when locally connected or if backend has active streaming hardware)
+  const isWebConnected = bluetoothStatus === 'connected'
+  const isBackActive = !!telemetry?.hardware_active && current !== null
+
+  const liveHeartRate = isWebConnected ? bleData.heartRate : (isBackActive && current ? current.heart_rate : null)
+  const liveSpo2 = isWebConnected ? bleData.spo2 : (isBackActive && current ? current.spo2 : null)
+  const liveTemp = isWebConnected ? bleData.temperature : (isBackActive && current ? current.skin_temp : null)
+  const liveFinger = isWebConnected ? bleData.fingerDetected : (isBackActive && (liveHeartRate !== null && liveHeartRate > 0))
+  const liveIR = isWebConnected ? bleData.ir : (isBackActive && current ? (current as any).ir : null)
+
+  const activeChartData = isWebConnected
+    ? liveChartData
+    : (history.slice(-30).map((item, idx) => ({
+        time: item.timestamp ? new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : `Pt ${idx + 1}`,
+        heartRate: item.heart_rate,
+        spo2: item.spo2,
+        temperature: item.skin_temp
+      })))
+
   // Calculate real-time AI outputs from active hardware telemetry
-  const stressScore = isHardwareActive && current ? current.kidney_stress_index : 0
-  const hydrationScore = isHardwareActive && current ? (current.hydration_status === 'Hydrated' ? 95 : current.hydration_status === 'Mild Dehydration' ? 65 : 25) : 0
-  const riskLevel: 'Low' | 'Moderate' | 'High' | 'Inactive' = isHardwareActive ? (stressScore > 65 ? 'High' : stressScore > 35 ? 'Moderate' : 'Low') : 'Inactive'
+  // Extremity skin temperature of fingers in ambient air is naturally around 29.5°C - 31.5°C
+  const temp_dev = liveTemp !== null ? Math.min(1.0, Math.max(0.0, Math.abs(liveTemp - 30.5) / 4.0)) : 0
+  const hr_dev = liveHeartRate !== null ? Math.min(1.0, Math.max(0.0, Math.abs(liveHeartRate - 75) / 60.0)) : 0
+  const stressScore = isHardwareActive && liveHeartRate !== null && liveTemp !== null
+    ? Math.max(12, Math.min(95, Math.round((0.5 * hr_dev + 0.5 * temp_dev) * 60) + 12))
+    : 0
+
+  const riskLevel: 'Low' | 'Moderate' | 'High' | 'Inactive' = isHardwareActive && stressScore > 0
+    ? (stressScore > 75 ? 'High' : stressScore > 45 ? 'Moderate' : 'Low')
+    : 'Inactive'
 
   const stressColor = riskLevel === 'High' ? '#a01432' : riskLevel === 'Moderate' ? '#f59e0b' : riskLevel === 'Inactive' ? '#64748b' : '#10b981'
   const stressCategory = riskLevel === 'High' ? 'Severe Stress' : riskLevel === 'Moderate' ? 'Moderate Stress' : riskLevel === 'Inactive' ? 'Inactive' : 'Low Stress'
 
   return (
-    <div className="wearable-page-container" style={{ maxWidth: '900px', margin: '0 auto', padding: '24px' }}>
-      <header className="wearable-header" style={{ marginBottom: '24px', textAlign: 'center' }}>
+    <div className="wearable-page-container">
+      <header className="wearable-header">
         <h1>
           <Icon name="activity" size={32} />
-          ESP32 Wearable Telemetry
+          Digital Kidney Twin & Wearable
         </h1>
-        <p>Live biometric signals streamed from your custom hardware device.</p>
+        <p>Real-time early warning trend analysis and multimodal sensor fusion pipeline.</p>
       </header>
 
       {error && (
@@ -664,91 +754,112 @@ export function WearablePage() {
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        {/* Connection & Live Data Panel */}
+      <div className="wearable-grid">
+        {/* LEFT COLUMN: Digital Kidney Twin & Status */}
         <section className="wearable-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #f3f4f6', paddingBottom: '12px' }}>
-            <h2 style={{ margin: 0, border: 'none', padding: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Icon name="activity" size={22} />
-              ESP32 Live Link
+            <h2 style={{ margin: 0, border: 'none', padding: 0 }}>
+              Digital Kidney Twin
             </h2>
-            <span className="pin-info-badge" style={{ backgroundColor: isHardwareActive ? '#e0f2fe' : '#f1f5f9', color: isHardwareActive ? '#0369a1' : '#64748b', fontWeight: 'bold' }}>
-              {isHardwareActive ? '🟢 ACTIVE' : '⚪ DISCONNECTED'}
-            </span>
+            {isHardwareActive && (
+              <span className="pin-info-badge" style={{ backgroundColor: '#e0f2fe', color: '#0369a1', fontWeight: 'bold' }}>
+                LIVE HARDWARE ACTIVE
+              </span>
+            )}
           </div>
 
-          <p style={{ fontSize: '13px', color: '#64748b', marginTop: '-8px', marginBottom: '16px' }}>
-            Pair over Bluetooth (BLE) or plug in via USB Serial to read real-time biometrics.
-          </p>
-
-          {/* Warnings if unsupported */}
-          {!isBluetoothSupported && isSerialSupported && (
-            <div style={{ background: '#fffbeb', padding: '12px 14px', borderRadius: '8px', border: '1px solid #fef3c7', fontSize: '12px', color: '#b45309', marginBottom: '16px', lineHeight: '1.5' }}>
-              ⚠️ <strong>Web Bluetooth Disabled:</strong> Bluetooth is disabled or unsupported in this browser/OS. Connect your ESP32 via USB and click <strong>"Connect USB"</strong>.
+          <div className="digital-twin-container">
+            <div className="twin-visualization" style={{ width: '100%', height: 'auto', marginBottom: '20px' }}>
+              <RotatingKidney3DCanvas stressScore={stressScore} riskLevel={riskLevel} />
             </div>
-          )}
 
-          {!isBluetoothSupported && !isSerialSupported && (
-            <div style={{ background: '#fff5f5', padding: '12px 14px', borderRadius: '8px', border: '1px solid #fee2e2', fontSize: '12px', color: '#b91c1c', marginBottom: '16px', lineHeight: '1.5' }}>
-              ❌ <strong>Browser APIs Unsupported:</strong> Your browser does not support Web Bluetooth or Web Serial. Use Google Chrome or MS Edge on desktop.
-            </div>
-          )}
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{
-                  width: '10px',
-                  height: '10px',
-                  borderRadius: '50%',
-                  backgroundColor: bluetoothStatus === 'connected' ? '#10b981' : bluetoothStatus === 'connecting' ? '#f59e0b' : '#94a3b8',
-                  boxShadow: bluetoothStatus === 'connected' ? '0 0 8px #10b981' : 'none'
-                }} />
-                <span style={{ fontSize: '14px', fontWeight: '600', color: '#0f172a' }}>
-                  {bluetoothStatus === 'connected' ? `Connected (${connectionType === 'ble' ? 'Bluetooth' : 'USB Serial'})` : bluetoothStatus === 'connecting' ? 'Connecting...' : 'Ready for Connection'}
-                </span>
+            <div className="stress-metrics-panel" style={{ width: '100%' }}>
+              <div className="stress-index-value" style={{ color: stressColor, fontSize: '38px', fontWeight: 900 }}>
+                {isHardwareActive ? `${stressScore}%` : '--'}
+              </div>
+              <div className="stress-label" style={{ fontWeight: 'bold', fontSize: '13.5px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                {stressCategory} Index
+              </div>
+              
+              <div className="stress-progress-bar" style={{ height: '8px', background: '#e2e8f0', borderRadius: '4px', margin: '12px 0 20px', overflow: 'hidden' }}>
+                <div
+                  className="stress-progress-fill"
+                  style={{
+                    width: `${stressScore}%`,
+                    backgroundColor: stressColor,
+                    height: '100%',
+                    transition: 'width 0.4s ease'
+                  }}
+                />
               </div>
 
-              {bluetoothStatus === 'connected' ? (
-                <button
-                  type="button"
-                  onClick={disconnectDevice}
-                  style={{
-                    background: '#ef4444',
-                    color: 'white',
-                    border: 'none',
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    fontSize: '13px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    transition: 'background 0.2s'
-                  }}
-                >
-                  Disconnect
-                </button>
-              ) : (
-                <div style={{ display: 'flex', gap: '8px' }}>
+              {/* AI outputs */}
+              <div className="twin-quick-metrics">
+                <div className="quick-metric-tile">
+                  <span>Kidney Stress</span>
+                  <strong style={{ color: !isHardwareActive ? '#64748b' : stressScore > 65 ? '#a01432' : '#083b66' }}>
+                    {isHardwareActive ? `${stressScore}%` : '--'}
+                  </strong>
+                </div>
+                <div className="quick-metric-tile">
+                  <span>Risk Level</span>
+                  <strong style={{ color: stressColor }}>{riskLevel}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* RIGHT COLUMN: Connection & Vitals */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+          <section className="wearable-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #f3f4f6', paddingBottom: '12px' }}>
+              <h2 style={{ margin: 0, border: 'none', padding: 0 }}>
+                ESP32 Live Link
+              </h2>
+              <span className="pin-info-badge" style={{ backgroundColor: isHardwareActive ? '#e0f2fe' : '#f1f5f9', color: isHardwareActive ? '#0369a1' : '#64748b', fontWeight: 'bold' }}>
+                {isHardwareActive ? 'ACTIVE' : 'DISCONNECTED'}
+              </span>
+            </div>
+
+            <p style={{ fontSize: '13px', color: '#64748b', marginTop: '-8px', marginBottom: '16px' }}>
+              Pair over Bluetooth (BLE) or plug in via USB Serial to read real-time biometrics.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '10px',
+                    height: '10px',
+                    borderRadius: '50%',
+                    backgroundColor: bluetoothStatus === 'connected' ? '#10b981' : bluetoothStatus === 'connecting' ? '#f59e0b' : '#94a3b8',
+                    boxShadow: bluetoothStatus === 'connected' ? '0 0 8px #10b981' : 'none'
+                  }} />
+                  <span style={{ fontSize: '14px', fontWeight: '600', color: '#0f172a' }}>
+                    {bluetoothStatus === 'connected' ? `Connected (${connectionType === 'ble' ? 'Bluetooth' : 'USB Serial'})` : bluetoothStatus === 'connecting' ? 'Connecting...' : 'Ready for Connection'}
+                  </span>
+                </div>
+
+                {bluetoothStatus === 'connected' ? (
                   <button
                     type="button"
-                    onClick={connectBluetooth}
-                    disabled={bluetoothStatus === 'connecting' || !isBluetoothSupported}
+                    onClick={disconnectDevice}
                     style={{
-                      background: isBluetoothSupported ? '#3b82f6' : '#94a3b8',
+                      background: '#ef4444',
                       color: 'white',
                       border: 'none',
                       padding: '6px 12px',
                       borderRadius: '6px',
-                      fontSize: '12px',
+                      fontSize: '13px',
                       fontWeight: 'bold',
-                      cursor: isBluetoothSupported ? 'pointer' : 'not-allowed',
-                      opacity: bluetoothStatus === 'connecting' ? 0.7 : 1,
+                      cursor: 'pointer',
                       transition: 'background 0.2s'
                     }}
                   >
-                    Connect BLE
+                    Disconnect
                   </button>
-                  
+                ) : (
                   <button
                     type="button"
                     onClick={connectSerial}
@@ -768,193 +879,163 @@ export function WearablePage() {
                   >
                     Connect USB
                   </button>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
 
-            {/* Live Data Grid */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-              gap: '12px',
-              marginTop: '8px'
-            }}>
-              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Finger Sensor</div>
-                <div style={{
-                  marginTop: '8px',
-                  fontSize: '15px',
-                  fontWeight: 'bold',
-                  color: (isHardwareActive && bleData.fingerDetected) ? '#10b981' : '#f59e0b'
-                }}>
-                  {isHardwareActive ? (bleData.fingerDetected ? '👉 Detected' : '⚠️ No Finger') : '--'}
+              {/* Live Data Grid */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                gap: '12px',
+                marginTop: '8px'
+              }}>
+                <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Finger Sensor</div>
+                  <div style={{
+                    marginTop: '8px',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    color: liveFinger ? '#10b981' : '#f59e0b'
+                  }}>
+                    {liveFinger ? 'Detected' : 'No Finger'}
+                  </div>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Heart Rate</div>
+                  <div style={{ marginTop: '8px', fontSize: '20px', fontWeight: '900', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                    {liveHeartRate !== null ? `${liveHeartRate} bpm` : '--'}
+                    {liveHeartRate !== null && liveFinger && (
+                      <span style={{ display: 'inline-block', width: '8px', height: '8px', background: '#ef4444', borderRadius: '50%', animation: 'pulse 1s infinite' }} />
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Blood Oxygen (SpO₂)</div>
+                  <div style={{ marginTop: '8px', fontSize: '20px', fontWeight: '900', color: '#083b66' }}>
+                    {liveSpo2 !== null ? `${liveSpo2}%` : '--'}
+                  </div>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Skin Temperature</div>
+                  <div style={{ marginTop: '8px', fontSize: '20px', fontWeight: '900', color: '#0b7f72' }}>
+                    {liveTemp !== null ? `${liveTemp.toFixed(1)} °C` : '--'}
+                  </div>
                 </div>
               </div>
 
-              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Heart Rate</div>
-                <div style={{ marginTop: '8px', fontSize: '20px', fontWeight: '900', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                  {isHardwareActive && bleData.heartRate !== null ? `${bleData.heartRate} bpm` : '--'}
-                  {isHardwareActive && bleData.heartRate !== null && bleData.fingerDetected && (
-                    <span style={{ display: 'inline-block', width: '8px', height: '8px', background: '#ef4444', borderRadius: '50%', animation: 'pulse 1s infinite' }} />
-                  )}
-                </div>
-              </div>
-
-              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Blood Oxygen (SpO₂)</div>
-                <div style={{ marginTop: '8px', fontSize: '20px', fontWeight: '900', color: '#083b66' }}>
-                  {isHardwareActive && bleData.spo2 !== null ? `${bleData.spo2}%` : '--'}
-                </div>
-              </div>
-
-              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Skin Temperature</div>
-                <div style={{ marginTop: '8px', fontSize: '20px', fontWeight: '900', color: '#0b7f72' }}>
-                  {isHardwareActive && bleData.temperature !== null ? `${bleData.temperature.toFixed(1)} °C` : '--'}
-                </div>
-              </div>
-            </div>
-
-            {isHardwareActive && bleData.ir !== null && (
-              <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', background: '#f1f5f9', padding: '6px', borderRadius: '6px' }}>
-                Raw Sensor Reflectivity (IR): <strong>{bleData.ir.toLocaleString()}</strong>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* AI Bio-Analysis & Alerts */}
-        {isHardwareActive && current && (
-          <section className="wearable-card">
-            <h2 style={{ margin: 0, border: 'none', padding: 0, marginBottom: '16px' }}>
-              <Icon name="spark" size={22} />
-              AI Analysis & Risks
-            </h2>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-              <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold' }}>HYDRATION STATUS</span>
-                <div style={{ fontSize: '16px', fontWeight: '800', color: hydrationScore < 50 ? '#a01432' : '#083b66', marginTop: '4px' }}>
-                  {current.hydration_status}
-                </div>
-              </div>
-              <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold' }}>KIDNEY STRESS INDEX</span>
-                <div style={{ fontSize: '16px', fontWeight: '800', color: stressColor, marginTop: '4px' }}>
-                  {stressScore}%
-                </div>
-              </div>
-              <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold' }}>RISK LEVEL</span>
-                <div style={{ fontSize: '16px', fontWeight: '800', color: stressColor, marginTop: '4px' }}>
-                  {riskLevel}
-                </div>
-              </div>
-            </div>
-
-            {/* AI Warning Banners */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {current.hyperkalemia_pattern && (
-                <div className="alert-message-card danger">
-                  <strong>ECG Alert: Hyperkalemic Pattern</strong>
-                  <span style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
-                    ECG analysis detects a peaked T-wave amplitude anomaly (T/QRS ratio: {(current.t_wave_amplitude && current.qrs_amplitude) ? (current.t_wave_amplitude / current.qrs_amplitude).toFixed(2) : '0.60'}).
-                  </span>
-                </div>
-              )}
-
-              {current.hydration_status === 'Severe Dehydration' && (
-                <div className="alert-message-card warning">
-                  <strong>Dehydration Alert: Extreme Risk</strong>
-                  <span style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
-                    Sweat conductivity exceeds baseline by &gt;25% and heart rate variability (HRV) has dropped.
-                  </span>
-                </div>
-              )}
-
-              {current.fluid_retention === 'Severe Retention' && (
-                <div className="alert-message-card warning">
-                  <strong>Fluid Retention Alert: Systemic Congestion</strong>
-                  <span style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
-                    Bioimpedance has drifted down to {current.bioimpedance} Ω, indicating extracellular fluid retention.
-                  </span>
-                </div>
-              )}
-
-              {!current.hyperkalemia_pattern && current.hydration_status !== 'Severe Dehydration' && current.fluid_retention !== 'Severe Retention' && (
-                <div className="alert-message-card success">
-                  <strong>All Systems Normal</strong>
-                  <span style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
-                    Wearable sensors report optimal biometric values.
-                  </span>
+              {typeof liveIR === 'number' && (
+                <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', background: '#f1f5f9', padding: '6px', borderRadius: '6px' }}>
+                  Raw Sensor Reflectivity (IR): {liveIR.toLocaleString()}
                 </div>
               )}
             </div>
           </section>
-        )}
 
-        {/* Clinical safety note */}
-        <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '12px', color: '#64748b' }}>
-          💡 <strong>Clinical safety note:</strong> Biometric sensors track physiological trends rather than absolute diagnostic values. Readings can lag blood serum concentrations by roughly 10–30 minutes.
+          {/* AI Bio-Analysis & Alerts */}
+          {isHardwareActive && current && (
+            <section className="wearable-card">
+              <h2 style={{ margin: 0, border: 'none', padding: 0, marginBottom: '16px' }}>
+                AI Analysis & Risks
+              </h2>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold' }}>KIDNEY STRESS INDEX</span>
+                  <div style={{ fontSize: '16px', fontWeight: '800', color: stressColor, marginTop: '4px' }}>
+                    {stressScore}%
+                  </div>
+                </div>
+                <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold' }}>RISK LEVEL</span>
+                  <div style={{ fontSize: '16px', fontWeight: '800', color: stressColor, marginTop: '4px' }}>
+                    {riskLevel}
+                  </div>
+                </div>
+              </div>
+
+              {/* AI Warning Banners */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {current.hyperkalemia_pattern && (
+                  <div className="alert-message-card danger">
+                    <strong>ECG Alert: Hyperkalemic Pattern</strong>
+                    <span style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
+                      ECG analysis detects a peaked T-wave amplitude anomaly (T/QRS ratio: {(current.t_wave_amplitude && current.qrs_amplitude) ? (current.t_wave_amplitude / current.qrs_amplitude).toFixed(2) : '0.60'}).
+                    </span>
+                  </div>
+                )}
+
+                {!current.hyperkalemia_pattern && (
+                  <div className="alert-message-card success">
+                    <strong>All Systems Normal</strong>
+                    <span style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
+                      Wearable sensors report optimal biometric values.
+                    </span>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Clinical safety note */}
+          <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '12px', color: '#64748b' }}>
+            Clinical safety note: Biometric sensors track physiological trends rather than absolute diagnostic values. Readings can lag blood serum concentrations by roughly 10–30 minutes.
+          </div>
         </div>
       </div>
 
-      {/* BOTTOM SECTION: 7-Day Trend Charts */}
-      {history.length > 0 && (
+      {/* BOTTOM SECTION: Live Real-Time Telemetry Trend */}
+      {activeChartData.length > 0 && (
         <>
-          <h2 className="charts-section-title" style={{ marginTop: '32px' }}>Sensor Trends History</h2>
+          <h2 className="charts-section-title" style={{ marginTop: '32px' }}>Live Biometric Stream</h2>
           <div className="wearable-charts-grid">
-            {/* Heart Rate & HRV */}
+            {/* Heart Rate */}
             <article className="chart-card">
               <h3>
-                Heart Rate & HRV Trend
-                <span>Sympathetic Stress Proxy</span>
+                Real-Time Heart Rate
+                <span>Measured in beats per minute</span>
               </h3>
               <div className="chart-container-wrapper">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <AreaChart data={activeChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorHr" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
                         <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0} />
                       </linearGradient>
-                      <linearGradient id="colorHrv" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
-                      </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                    <XAxis dataKey="dayLabel" stroke="#9ca3af" fontSize={11} />
-                    <YAxis stroke="#9ca3af" fontSize={11} />
+                    <XAxis dataKey="time" stroke="#9ca3af" fontSize={9} />
+                    <YAxis stroke="#9ca3af" fontSize={11} domain={['auto', 'auto']} />
                     <Tooltip />
-                    <Area type="monotone" name="Heart Rate (bpm)" dataKey="heart_rate" stroke="#3b82f6" strokeWidth={2.5} fillOpacity={1} fill="url(#colorHr)" />
-                    <Area type="monotone" name="HRV (ms)" dataKey="hrv" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorHrv)" />
+                    <Area type="monotone" name="Heart Rate (bpm)" dataKey="heartRate" stroke="#3b82f6" strokeWidth={2.5} fillOpacity={1} fill="url(#colorHr)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </article>
 
-            {/* Sweat Conductivity */}
+            {/* Skin Temperature */}
             <article className="chart-card">
               <h3>
-                Sweat Conductivity
-                <span>Electrolyte & Ion Loss (Na⁺/K⁺ Proxy)</span>
+                Real-Time Skin Temperature
+                <span>Measured in degrees Celsius</span>
               </h3>
               <div className="chart-container-wrapper">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <AreaChart data={activeChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
-                      <linearGradient id="colorCond" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.0} />
+                      <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#0b7f72" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#0b7f72" stopOpacity={0.0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                    <XAxis dataKey="dayLabel" stroke="#9ca3af" fontSize={11} />
-                    <YAxis stroke="#9ca3af" fontSize={11} />
+                    <XAxis dataKey="time" stroke="#9ca3af" fontSize={9} />
+                    <YAxis stroke="#9ca3af" fontSize={11} domain={['auto', 'auto']} />
                     <Tooltip />
-                    <Area type="monotone" name="Sweat Conductivity (μS)" dataKey="sweat_conductivity" stroke="#f59e0b" strokeWidth={2.5} fillOpacity={1} fill="url(#colorCond)" />
+                    <Area type="monotone" name="Temp (°C)" dataKey="temperature" stroke="#0b7f72" strokeWidth={2.5} fillOpacity={1} fill="url(#colorTemp)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>

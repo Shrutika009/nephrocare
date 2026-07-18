@@ -117,6 +117,7 @@ export type WearableResponse = {
   current: TelemetryData;
   history: TelemetryData[];
   scenario: string;
+  hardware_active: boolean;
 }
 
 export type StageProgressionResult = {
