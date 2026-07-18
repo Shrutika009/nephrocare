@@ -1252,14 +1252,17 @@ def predict_ckd_stage(payload: dict) -> dict:
 
 HARDWARE_ACTIVE = False
 HARDWARE_HISTORY = []
+LAST_TELEMETRY_TIME = 0.0
 
 
 def get_wearable_telemetry() -> dict[str, Any]:
-    global HARDWARE_ACTIVE, HARDWARE_HISTORY
+    global HARDWARE_ACTIVE, HARDWARE_HISTORY, LAST_TELEMETRY_TIME
+    import time
+    is_active = HARDWARE_ACTIVE and (time.time() - LAST_TELEMETRY_TIME < 6.0)
     return {
-        "hardware_active": HARDWARE_ACTIVE,
-        "current": HARDWARE_HISTORY[-1] if HARDWARE_HISTORY else None,
-        "history": HARDWARE_HISTORY,
+        "hardware_active": is_active,
+        "current": HARDWARE_HISTORY[-1] if (HARDWARE_HISTORY and is_active) else None,
+        "history": HARDWARE_HISTORY if is_active else [],
         "scenario": "hardware"
     }
 
@@ -1557,7 +1560,9 @@ class Handler(BaseHTTPRequestHandler):
             
             import datetime
             import random
-            global HARDWARE_ACTIVE, HARDWARE_HISTORY
+            global HARDWARE_ACTIVE, HARDWARE_HISTORY, LAST_TELEMETRY_TIME
+            import time
+            LAST_TELEMETRY_TIME = time.time()
             
             # Extract values from hardware payload, default to baseline values if null/missing
             hr = payload.get("heart_rate")
@@ -1577,6 +1582,8 @@ class Handler(BaseHTTPRequestHandler):
                 temp = 36.6
             else:
                 temp = round(temp, 1)
+
+            ir = payload.get("ir")
             
             # Derive other metrics dynamically from real hardware data
             hrv = max(10, min(140, 130 - hr + random.randint(-5, 5)))
@@ -1588,25 +1595,20 @@ class Handler(BaseHTTPRequestHandler):
             # Bioimpedance: normal baseline
             bioimp = round(495.0 + random.uniform(-2, 2))
             
-            ecg_anomaly = False
-            t_wave_amp = 0.18
-            qrs_amp = 1.2
-            
-            # AI Risk Engine Rules
-            hrv_dev = max(0.0, (60.0 - hrv) / 40.0)
-            sweat_dev = min(1.0, max(0.0, (sweat_cond - 14.0) / 50.0))
-            bioimp_dev = min(1.0, max(0.0, abs(bioimp - 495.0) / 200.0))
-            temp_dev = min(1.0, max(0.0, (temp - 36.6) / 1.2))
-            
-            stress_idx = round((0.35 * hrv_dev + 0.25 * sweat_dev + 0.25 * bioimp_dev + 0.15 * temp_dev) * 100)
+            # Stress score logic (derive strictly from HR & skin temperature deviation)
+            temp_dev = min(1.0, max(0.0, abs(temp - 30.5) / 4.0))
+            hr_dev = min(1.0, max(0.0, abs(hr - 75) / 60.0))
+            stress_idx = round((0.5 * hr_dev + 0.5 * temp_dev) * 60) + 12
             stress_idx = max(12, min(95, stress_idx))
             
-            elec_risk = "High" if sweat_cond > 50 else "Moderate" if sweat_cond > 28 else "Low"
-            hydration = "Severe Dehydration" if (sweat_cond > 40 or hrv < 30) else "Hydrated"
-            fluid_ret = "Severe Retention" if bioimp < 350 else "Mild Retention" if bioimp < 420 else "Normal"
+            elec_risk = "Low"
+            hydration = "Hydrated"
+            fluid_ret = "Normal"
             
+            t_wave_amp = 0.18
+            qrs_amp = 1.2
             t_to_qrs_ratio = t_wave_amp / qrs_amp
-            hyperkalemia = (t_to_qrs_ratio > 0.50 and sweat_cond > 45)
+            hyperkalemia = (t_to_qrs_ratio > 0.50 and hr > 100)
             
             timestamp_str = datetime.datetime.now().isoformat()
             
@@ -1616,9 +1618,10 @@ class Handler(BaseHTTPRequestHandler):
                 "hrv": hrv,
                 "spo2": spo2,
                 "skin_temp": temp,
+                "ir": ir if ir is not None else (70000 if hr > 72 else 400),
                 "sweat_conductivity": sweat_cond,
                 "bioimpedance": bioimp,
-                "ecg_anomaly": ecg_anomaly,
+                "ecg_anomaly": False,
                 "kidney_stress_index": stress_idx,
                 "electrolyte_risk": elec_risk,
                 "hydration_status": hydration,
@@ -1630,7 +1633,7 @@ class Handler(BaseHTTPRequestHandler):
             
             HARDWARE_ACTIVE = True
             HARDWARE_HISTORY.append(entry)
-            if len(HARDWARE_HISTORY) > 10:
+            if len(HARDWARE_HISTORY) > 30:
                 HARDWARE_HISTORY.pop(0)
                 
             self.respond(200, {
