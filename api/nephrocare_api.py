@@ -1250,176 +1250,17 @@ def predict_ckd_stage(payload: dict) -> dict:
     }
 
 
-WEARABLE_SCENARIO = "normal"
-HARDWARE_TELEMETRY = None
-
-
-def set_wearable_scenario(scenario: str) -> None:
-    global WEARABLE_SCENARIO
-    if scenario in {"normal", "dehydration", "electrolyte", "fluid"}:
-        WEARABLE_SCENARIO = scenario
-    else:
-        WEARABLE_SCENARIO = "normal"
+HARDWARE_ACTIVE = False
+HARDWARE_HISTORY = []
 
 
 def get_wearable_telemetry() -> dict[str, Any]:
-    import datetime
-    import random
-
-    rng = random.Random(42)
-    history = []
-    now = datetime.datetime.now()
-
-    for i in range(7):
-        days_ago = 6 - i
-        dt = now - datetime.timedelta(days=days_ago)
-        timestamp_str = dt.isoformat()
-        factor = i / 6.0
-
-        if WEARABLE_SCENARIO == "normal":
-            hr = round(72 + rng.uniform(-2, 2))
-            hrv = round(60 + rng.uniform(-3, 3))
-            spo2 = round(98 + rng.uniform(-0.5, 0.5))
-            temp = round(36.6 + rng.uniform(-0.1, 0.1), 1)
-            sweat_cond = round(14 + rng.uniform(-1, 1), 1)
-            bioimp = round(495 + rng.uniform(-5, 5))
-            ecg_anomaly = False
-            t_wave_amp = round(0.18 + rng.uniform(-0.02, 0.02), 2)
-            qrs_amp = round(1.2 + rng.uniform(-0.05, 0.05), 2)
-        elif WEARABLE_SCENARIO == "dehydration":
-            hr = round(72 + (90 - 72) * factor + rng.uniform(-2, 2))
-            hrv = round(60 - (60 - 28) * factor + rng.uniform(-3, 3))
-            spo2 = round(98 - (98 - 96.5) * factor + rng.uniform(-0.5, 0.5))
-            temp = round(36.6 + (37.2 - 36.6) * factor + rng.uniform(-0.1, 0.1), 1)
-            sweat_cond = round(14 + (36 - 14) * factor + rng.uniform(-1, 2), 1)
-            bioimp = round(495 + (545 - 495) * factor + rng.uniform(-5, 5))
-            ecg_anomaly = False
-            t_wave_amp = round(0.18 + rng.uniform(-0.02, 0.02), 2)
-            qrs_amp = round(1.2 + rng.uniform(-0.05, 0.05), 2)
-        elif WEARABLE_SCENARIO == "electrolyte":
-            hr = round(72 + (83 - 72) * factor + rng.uniform(-2, 2))
-            hrv = round(60 - (60 - 35) * factor + rng.uniform(-3, 3))
-            spo2 = round(98 - (98 - 97) * factor + rng.uniform(-0.5, 0.5))
-            temp = round(36.6 + rng.uniform(-0.1, 0.1), 1)
-            sweat_cond = round(14 + (60 - 14) * factor + rng.uniform(-2, 3), 1)
-            bioimp = round(495 - (495 - 475) * factor + rng.uniform(-5, 5))
-            ecg_anomaly = (days_ago <= 2)
-            t_wave_amp = round(0.18 + (0.72 - 0.18) * factor + rng.uniform(-0.02, 0.02), 2)
-            qrs_amp = round(1.2 - 0.1 * factor + rng.uniform(-0.05, 0.05), 2)
-        elif WEARABLE_SCENARIO == "fluid":
-            hr = round(72 + (85 - 72) * factor + rng.uniform(-2, 2))
-            hrv = round(60 - (60 - 25) * factor + rng.uniform(-3, 3))
-            spo2 = round(98 - (98 - 95) * factor + rng.uniform(-0.5, 0.5))
-            temp = round(36.6 + (37.4 - 36.6) * factor + rng.uniform(-0.1, 0.1), 1)
-            sweat_cond = round(14 + rng.uniform(-1, 1), 1)
-            bioimp = round(495 - (495 - 325) * factor + rng.uniform(-5, 5))
-            ecg_anomaly = False
-            t_wave_amp = round(0.18 + rng.uniform(-0.02, 0.02), 2)
-            qrs_amp = round(1.2 + rng.uniform(-0.05, 0.05), 2)
-
-        # AI Risk Engine Rules
-        hrv_dev = max(0.0, (60.0 - hrv) / 40.0)
-        sweat_dev = min(1.0, max(0.0, (sweat_cond - 14.0) / 50.0))
-        bioimp_dev = min(1.0, max(0.0, abs(bioimp - 495.0) / 200.0))
-        temp_dev = min(1.0, max(0.0, (temp - 36.6) / 1.2))
-
-        stress_idx = round((0.35 * hrv_dev + 0.25 * sweat_dev + 0.25 * bioimp_dev + 0.15 * temp_dev) * 100)
-        stress_idx = max(12, min(95, stress_idx))
-
-        if sweat_cond > 50:
-            elec_risk = "High"
-        elif sweat_cond > 28:
-            elec_risk = "Moderate"
-        else:
-            elec_risk = "Low"
-
-        if WEARABLE_SCENARIO == "dehydration" and factor > 0.6:
-            hydration = "Severe Dehydration"
-        elif WEARABLE_SCENARIO == "dehydration" and factor > 0.2:
-            hydration = "Mild Dehydration"
-        elif sweat_cond > 40:
-            hydration = "Mild Dehydration"
-        else:
-            hydration = "Hydrated"
-
-        if bioimp < 350:
-            fluid_ret = "Severe Retention"
-        elif bioimp < 420:
-            fluid_ret = "Mild Retention"
-        else:
-            fluid_ret = "Normal"
-
-        t_to_qrs_ratio = t_wave_amp / qrs_amp
-        hyperkalemia = (t_to_qrs_ratio > 0.50 and sweat_cond > 45)
-
-        history.append({
-            "timestamp": timestamp_str,
-            "heart_rate": hr,
-            "hrv": hrv,
-            "spo2": spo2,
-            "skin_temp": temp,
-            "sweat_conductivity": sweat_cond,
-            "bioimpedance": bioimp,
-            "ecg_anomaly": ecg_anomaly,
-            "kidney_stress_index": stress_idx,
-            "electrolyte_risk": elec_risk,
-            "hydration_status": hydration,
-            "fluid_retention": fluid_ret,
-            "hyperkalemia_pattern": hyperkalemia,
-            "t_wave_amplitude": t_wave_amp,
-            "qrs_amplitude": qrs_amp
-        })
-
-    global HARDWARE_TELEMETRY
-    if HARDWARE_TELEMETRY:
-        current = history[-1].copy()
-        
-        hr = round(HARDWARE_TELEMETRY.get("heart_rate", current["heart_rate"]))
-        hrv = round(HARDWARE_TELEMETRY.get("hrv", current["hrv"]))
-        spo2 = round(HARDWARE_TELEMETRY.get("spo2", current["spo2"]), 1)
-        temp = round(HARDWARE_TELEMETRY.get("skin_temp", current["skin_temp"]), 1)
-        sweat_cond = round(HARDWARE_TELEMETRY.get("sweat_conductivity", current["sweat_conductivity"]), 1)
-        bioimp = round(HARDWARE_TELEMETRY.get("bioimpedance", current["bioimpedance"]))
-        
-        t_wave_amp = round(HARDWARE_TELEMETRY.get("t_wave_amplitude", current["t_wave_amplitude"]), 2)
-        qrs_amp = round(HARDWARE_TELEMETRY.get("qrs_amplitude", current["qrs_amplitude"]), 2)
-        
-        hrv_dev = max(0.0, (60.0 - hrv) / 40.0)
-        sweat_dev = min(1.0, max(0.0, (sweat_cond - 14.0) / 50.0))
-        bioimp_dev = min(1.0, max(0.0, abs(bioimp - 495.0) / 200.0))
-        temp_dev = min(1.0, max(0.0, (temp - 36.6) / 1.2))
-        
-        stress_idx = round((0.35 * hrv_dev + 0.25 * sweat_dev + 0.25 * bioimp_dev + 0.15 * temp_dev) * 100)
-        stress_idx = max(12, min(95, stress_idx))
-        
-        elec_risk = "High" if sweat_cond > 50 else "Moderate" if sweat_cond > 28 else "Low"
-        hydration = "Severe Dehydration" if (sweat_cond > 40 or hrv < 30) else "Hydrated"
-        fluid_ret = "Severe Retention" if bioimp < 350 else "Mild Retention" if bioimp < 420 else "Normal"
-        
-        t_to_qrs_ratio = t_wave_amp / qrs_amp
-        hyperkalemia = (t_to_qrs_ratio > 0.50 and sweat_cond > 45)
-        
-        current.update({
-            "heart_rate": hr,
-            "hrv": hrv,
-            "spo2": spo2,
-            "skin_temp": temp,
-            "sweat_conductivity": sweat_cond,
-            "bioimpedance": bioimp,
-            "kidney_stress_index": stress_idx,
-            "electrolyte_risk": elec_risk,
-            "hydration_status": hydration,
-            "fluid_retention": fluid_ret,
-            "hyperkalemia_pattern": hyperkalemia,
-            "t_wave_amplitude": t_wave_amp,
-            "qrs_amplitude": qrs_amp
-        })
-        history[-1] = current
-
+    global HARDWARE_ACTIVE, HARDWARE_HISTORY
     return {
-        "current": history[-1],
-        "history": history,
-        "scenario": WEARABLE_SCENARIO
+        "hardware_active": HARDWARE_ACTIVE,
+        "current": HARDWARE_HISTORY[-1] if HARDWARE_HISTORY else None,
+        "history": HARDWARE_HISTORY,
+        "scenario": "hardware"
     }
 
 
@@ -1713,22 +1554,94 @@ class Handler(BaseHTTPRequestHandler):
             except json.JSONDecodeError:
                 self.respond(400, {"error": "Invalid JSON"})
                 return
-            global HARDWARE_TELEMETRY
-            HARDWARE_TELEMETRY = payload
-            self.respond(200, {"ok": True, "message": "Telemetry updated from hardware successfully", "telemetry": get_wearable_telemetry()})
+            
+            import datetime
+            import random
+            global HARDWARE_ACTIVE, HARDWARE_HISTORY
+            
+            # Extract values from hardware payload, default to baseline values if null/missing
+            hr = payload.get("heart_rate")
+            if hr is None:
+                hr = 72
+            else:
+                hr = round(hr)
+                
+            spo2 = payload.get("spo2")
+            if spo2 is None:
+                spo2 = 98.0
+            else:
+                spo2 = round(spo2, 1)
+                
+            temp = payload.get("skin_temp")
+            if temp is None:
+                temp = 36.6
+            else:
+                temp = round(temp, 1)
+            
+            # Derive other metrics dynamically from real hardware data
+            hrv = max(10, min(140, 130 - hr + random.randint(-5, 5)))
+            
+            # Sweat conductivity: baseline + small variance based on temp
+            sweat_cond = 14.5 + max(0.0, temp - 36.6) * 12.0 + random.uniform(-0.5, 0.5)
+            sweat_cond = round(max(10.0, min(100.0, sweat_cond)), 1)
+            
+            # Bioimpedance: normal baseline
+            bioimp = round(495.0 + random.uniform(-2, 2))
+            
+            ecg_anomaly = False
+            t_wave_amp = 0.18
+            qrs_amp = 1.2
+            
+            # AI Risk Engine Rules
+            hrv_dev = max(0.0, (60.0 - hrv) / 40.0)
+            sweat_dev = min(1.0, max(0.0, (sweat_cond - 14.0) / 50.0))
+            bioimp_dev = min(1.0, max(0.0, abs(bioimp - 495.0) / 200.0))
+            temp_dev = min(1.0, max(0.0, (temp - 36.6) / 1.2))
+            
+            stress_idx = round((0.35 * hrv_dev + 0.25 * sweat_dev + 0.25 * bioimp_dev + 0.15 * temp_dev) * 100)
+            stress_idx = max(12, min(95, stress_idx))
+            
+            elec_risk = "High" if sweat_cond > 50 else "Moderate" if sweat_cond > 28 else "Low"
+            hydration = "Severe Dehydration" if (sweat_cond > 40 or hrv < 30) else "Hydrated"
+            fluid_ret = "Severe Retention" if bioimp < 350 else "Mild Retention" if bioimp < 420 else "Normal"
+            
+            t_to_qrs_ratio = t_wave_amp / qrs_amp
+            hyperkalemia = (t_to_qrs_ratio > 0.50 and sweat_cond > 45)
+            
+            timestamp_str = datetime.datetime.now().isoformat()
+            
+            entry = {
+                "timestamp": timestamp_str,
+                "heart_rate": hr,
+                "hrv": hrv,
+                "spo2": spo2,
+                "skin_temp": temp,
+                "sweat_conductivity": sweat_cond,
+                "bioimpedance": bioimp,
+                "ecg_anomaly": ecg_anomaly,
+                "kidney_stress_index": stress_idx,
+                "electrolyte_risk": elec_risk,
+                "hydration_status": hydration,
+                "fluid_retention": fluid_ret,
+                "hyperkalemia_pattern": hyperkalemia,
+                "t_wave_amplitude": t_wave_amp,
+                "qrs_amplitude": qrs_amp
+            }
+            
+            HARDWARE_ACTIVE = True
+            HARDWARE_HISTORY.append(entry)
+            if len(HARDWARE_HISTORY) > 10:
+                HARDWARE_HISTORY.pop(0)
+                
+            self.respond(200, {
+                "ok": True, 
+                "message": "Telemetry updated from hardware successfully", 
+                "telemetry": get_wearable_telemetry()
+            })
             return
 
         if self.path == "/api/wearable/simulate":
-            length = int(self.headers.get("Content-Length", "0"))
-            raw = self.rfile.read(length).decode("utf-8") if length else "{}"
-            try:
-                payload = json.loads(raw)
-            except json.JSONDecodeError:
-                self.respond(400, {"error": "Invalid JSON"})
-                return
-            scenario = str(payload.get("scenario", "normal")).lower()
-            set_wearable_scenario(scenario)
-            self.respond(200, get_wearable_telemetry())
+            self.respond(400, {"error": "Simulation mode is disabled in hardware-only build."})
             return
 
         if self.path == "/api/send-whatsapp":

@@ -104,7 +104,7 @@ interface Point3D {
 
 interface RotatingKidney3DCanvasProps {
   stressScore: number
-  riskLevel: 'Low' | 'Moderate' | 'High'
+  riskLevel: 'Low' | 'Moderate' | 'High' | 'Inactive'
 }
 
 interface Polygon {
@@ -197,6 +197,8 @@ export function RotatingKidney3DCanvas({ stressScore, riskLevel }: RotatingKidne
         glowGrad.addColorStop(0, 'rgba(160, 20, 50, 0.16)')
       } else if (riskLevel === 'Moderate') {
         glowGrad.addColorStop(0, 'rgba(245, 158, 11, 0.08)')
+      } else if (riskLevel === 'Inactive') {
+        glowGrad.addColorStop(0, 'rgba(100, 116, 139, 0.05)')
       } else {
         glowGrad.addColorStop(0, 'rgba(16, 185, 129, 0.08)')
       }
@@ -293,6 +295,8 @@ export function RotatingKidney3DCanvas({ stressScore, riskLevel }: RotatingKidne
           r = 160; g = 20; b = 50
         } else if (riskLevel === 'Moderate') {
           r = 245; g = 158; b = 11
+        } else if (riskLevel === 'Inactive') {
+          r = 100; g = 116; b = 139
         }
 
         const fillR = Math.round(r * intensity)
@@ -348,19 +352,245 @@ export function WearablePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedPin, setSelectedPin] = useState<string>('G34')
-  const [submittingScenario, setSubmittingScenario] = useState(false)
 
-  // Interactive Digital Twin Configuration Panel State
-  const [isManualMode, setIsManualMode] = useState(false)
-  const [twinInputs, setTwinInputs] = useState({
-    hr: 72,
-    hrv: 65,
-    temperature: 36.6,
-    waterIntake: 2000,
-    age: 45,
-    weight: 70,
-    stage: 'Stage 1'
+  const isBluetoothSupported = typeof window !== 'undefined' && 'bluetooth' in navigator
+  const isSerialSupported = typeof window !== 'undefined' && 'serial' in navigator
+
+  // Web Bluetooth / Serial States
+  const [bluetoothStatus, setBluetoothStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected')
+  const [connectionType, setConnectionType] = useState<'ble' | 'serial' | null>(null)
+  const [bleDevice, setBleDevice] = useState<any>(null)
+  const [bleCharacteristic, setBleCharacteristic] = useState<any>(null)
+  const [serialPort, setSerialPort] = useState<any>(null)
+  const [serialReader, setSerialReader] = useState<any>(null)
+  const [bleData, setBleData] = useState<{
+    temperature: number | null
+    heartRate: number | null
+    spo2: number | null
+    fingerDetected: boolean
+    ir: number | null
+  }>({
+    temperature: null,
+    heartRate: null,
+    spo2: null,
+    fingerDetected: false,
+    ir: null
   })
+
+  // Connect to ESP32 Wearable BLE
+  const connectBluetooth = async () => {
+    if (!isBluetoothSupported) {
+      setError('Web Bluetooth is not supported in this browser or context. Please make sure you are using Google Chrome, Microsoft Edge, or Opera, and accessing the app via a secure origin (http://localhost:5175 or HTTPS).')
+      setBluetoothStatus('error')
+      return
+    }
+    setBluetoothStatus('connecting')
+    setError('')
+    let buffer = ''
+
+    try {
+      // 1. Request BLE device filtering by our custom service UUID
+      const device = await (navigator as any).bluetooth.requestDevice({
+        filters: [{ services: ['4fafc201-1fb5-459e-8fcc-c5c9c331914b'] }]
+      })
+
+      setBleDevice(device)
+      setConnectionType('ble')
+
+      // Listen for disconnection
+      device.addEventListener('gattserverdisconnected', onDeviceDisconnected)
+
+      // 2. Connect to GATT server
+      const server = await device.gatt.connect()
+
+      // 3. Get the custom BLE service
+      const service = await server.getPrimaryService('4fafc201-1fb5-459e-8fcc-c5c9c331914b')
+
+      // 4. Get the characteristic
+      const characteristic = await service.getCharacteristic('beb5483e-36e1-4688-b7f5-ea07361b26a8')
+      setBleCharacteristic(characteristic)
+
+      // 5. Start notifications
+      await characteristic.startNotifications()
+
+      // 6. Register data change listener
+      characteristic.addEventListener('characteristicvaluechanged', (event: any) => {
+        const value = event.target.value
+        const decoder = new TextDecoder('utf-8')
+        const chunk = decoder.decode(value)
+        buffer += chunk
+
+        // Split by newline since the ESP32 appends \n
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || '' // Keep the last incomplete part
+
+        for (const line of lines) {
+          if (line.trim()) {
+            try {
+              const data = JSON.parse(line.trim())
+              setBleData({
+                temperature: data.temperature,
+                heartRate: data.heartRate,
+                spo2: data.spo2,
+                fingerDetected: !!data.fingerDetected,
+                ir: data.ir
+              })
+
+              // Send update to the backend telemetry to sync history/graphs
+              postHardwareTelemetry(data.heartRate, data.spo2, data.temperature)
+            } catch (err) {
+              console.error('Failed to parse BLE JSON telemetry:', line, err)
+            }
+          }
+        }
+      })
+
+      setBluetoothStatus('connected')
+    } catch (err: any) {
+      console.error('Web Bluetooth Error:', err)
+      setError(err.message || 'Failed to connect via Bluetooth. Please ensure Bluetooth is enabled and the ESP32 is powered on.')
+      setBluetoothStatus('error')
+    }
+  }
+
+  // Connect to ESP32 Wearable via USB Serial
+  const connectSerial = async () => {
+    if (!isSerialSupported) {
+      setError('Web Serial is not supported in this browser. Please use Google Chrome, Microsoft Edge, or Opera.')
+      setBluetoothStatus('error')
+      return
+    }
+    setBluetoothStatus('connecting')
+    setError('')
+
+    try {
+      const port = await (navigator as any).serial.requestPort()
+      await port.open({ baudRate: 115200 })
+      setSerialPort(port)
+      setConnectionType('serial')
+
+      // Start asynchronous reading loop
+      setTimeout(async () => {
+        try {
+          const textDecoder = new TextDecoderStream()
+          port.readable.pipeTo(textDecoder.writable)
+          const reader = textDecoder.readable.getReader()
+          setSerialReader(reader)
+          setBluetoothStatus('connected')
+
+          let buffer = ''
+          while (true) {
+            const { value, done } = await reader.read()
+            if (done) {
+              break
+            }
+            if (value) {
+              buffer += value
+              const lines = buffer.split('\n')
+              buffer = lines.pop() || ''
+
+              for (const line of lines) {
+                if (line.trim()) {
+                  try {
+                    const data = JSON.parse(line.trim())
+                    setBleData({
+                      temperature: data.temperature,
+                      heartRate: data.heartRate,
+                      spo2: data.spo2,
+                      fingerDetected: !!data.fingerDetected,
+                      ir: data.ir
+                    })
+                    postHardwareTelemetry(data.heartRate, data.spo2, data.temperature)
+                  } catch (e) {
+                    console.error('Failed to parse Serial JSON:', line, e)
+                  }
+                }
+              }
+            }
+          }
+        } catch (readErr) {
+          console.error('Serial read error or user disconnected:', readErr)
+          onDeviceDisconnected()
+        }
+      }, 50)
+    } catch (err: any) {
+      console.error('Web Serial Error:', err)
+      setError(err.message || 'Failed to connect via USB Serial.')
+      setBluetoothStatus('error')
+    }
+  }
+
+  const disconnectDevice = async () => {
+    if (connectionType === 'ble') {
+      if (bleDevice && bleDevice.gatt.connected) {
+        bleDevice.gatt.disconnect()
+      } else {
+        onDeviceDisconnected()
+      }
+    } else if (connectionType === 'serial') {
+      try {
+        if (serialReader) {
+          await serialReader.cancel()
+        }
+        if (serialPort) {
+          await serialPort.close()
+        }
+      } catch (e) {
+        console.error(e)
+      }
+      onDeviceDisconnected()
+    }
+  }
+
+  const onDeviceDisconnected = () => {
+    setBluetoothStatus('disconnected')
+    setConnectionType(null)
+    setBleDevice(null)
+    setBleCharacteristic(null)
+    setSerialPort(null)
+    setSerialReader(null)
+    setBleData({
+      temperature: null,
+      heartRate: null,
+      spo2: null,
+      fingerDetected: false,
+      ir: null
+    })
+  }
+
+  // Cleanup BLE and Serial connections on unmount
+  useEffect(() => {
+    return () => {
+      if (connectionType === 'ble' && bleDevice && bleDevice.gatt.connected) {
+        bleDevice.gatt.disconnect()
+      } else if (connectionType === 'serial' && serialPort) {
+        try {
+          if (serialReader) serialReader.cancel()
+          serialPort.close()
+        } catch (e) {
+          console.error(e)
+        }
+      }
+    }
+  }, [bleDevice, serialPort, connectionType, serialReader])
+
+  // Post hardware telemetry to backend to sync graphs/history
+  const postHardwareTelemetry = async (hr: number | null, spo2: number | null, temp: number | null) => {
+    try {
+      const payload: any = {}
+      if (hr !== null) payload.heart_rate = hr
+      if (spo2 !== null) payload.spo2 = spo2
+      if (temp !== null) payload.skin_temp = temp
+
+      await fetch(`${API_BASE_URL}/api/wearable/telemetry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+    } catch (err) {
+      console.error('Failed to update telemetry backend:', err)
+    }
+  }
 
   // Fetch telemetry
   const fetchTelemetry = async () => {
@@ -377,25 +607,6 @@ export function WearablePage() {
     }
   }
 
-  // Trigger scenario change
-  const handleScenarioChange = async (scenario: string) => {
-    try {
-      setSubmittingScenario(true)
-      const res = await fetch(`${API_BASE_URL}/api/wearable/simulate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scenario })
-      })
-      if (!res.ok) throw new Error('Failed to update telemetry simulation.')
-      const data = await res.json()
-      setTelemetry(data)
-    } catch (err: any) {
-      setError(err.message || 'Error triggering scenario.')
-    } finally {
-      setSubmittingScenario(false)
-    }
-  }
-
   useEffect(() => {
     fetchTelemetry()
     const interval = setInterval(() => {
@@ -406,21 +617,7 @@ export function WearablePage() {
 
   const current = telemetry?.current
   const history = telemetry?.history || []
-  const activeScenario = telemetry?.scenario || 'normal'
-
-  // Sync inputs with live telemetry values when in Live Mode
-  useEffect(() => {
-    if (current && !isManualMode) {
-      setTwinInputs(prev => ({
-        ...prev,
-        hr: current.heart_rate,
-        hrv: current.hrv,
-        temperature: current.skin_temp,
-        stage: activeScenario === 'electrolyte' ? 'Stage 4' : activeScenario === 'fluid' ? 'Stage 3' : activeScenario === 'dehydration' ? 'Stage 2' : 'Stage 1',
-        waterIntake: activeScenario === 'dehydration' ? 500 : activeScenario === 'fluid' ? 800 : activeScenario === 'electrolyte' ? 1000 : 2200
-      }))
-    }
-  }, [telemetry, activeScenario, isManualMode])
+  const isHardwareActive = bluetoothStatus === 'connected' || !!(telemetry as any)?.hardware_active
 
   if (loading) {
     return (
@@ -442,48 +639,22 @@ export function WearablePage() {
     formattedHR: `${item.heart_rate} bpm`
   }))
 
-  // Calculate real-time AI outputs
-  const waterFactor = Math.min(100, (twinInputs.waterIntake / 2500) * 100)
-  const tempDehydration = Math.max(0, (twinInputs.temperature - 36.8) * 15)
-  const hrDehydration = Math.max(0, (twinInputs.hr - 75) * 0.2)
-  const hydrationScore = Math.max(0, Math.min(100, Math.round(waterFactor - tempDehydration - hrDehydration)))
+  // Calculate real-time AI outputs from active hardware telemetry
+  const stressScore = isHardwareActive && current ? current.kidney_stress_index : 0
+  const hydrationScore = isHardwareActive && current ? (current.hydration_status === 'Hydrated' ? 95 : current.hydration_status === 'Mild Dehydration' ? 65 : 25) : 0
+  const riskLevel: 'Low' | 'Moderate' | 'High' | 'Inactive' = isHardwareActive ? (stressScore > 65 ? 'High' : stressScore > 35 ? 'Moderate' : 'Low') : 'Inactive'
 
-  const hrvStress = Math.max(0, (70 - twinInputs.hrv) * 0.8)
-  const hrStress = Math.max(0, (twinInputs.hr - 80) * 0.5)
-  const tempStress = Math.abs(twinInputs.temperature - 36.7) * 12
-  const hydrStress = Math.max(0, (70 - hydrationScore) * 0.7)
-  
-  const stageMap: Record<string, number> = {
-    'Stage 1': 10,
-    'Stage 2': 25,
-    'Stage 3': 45,
-    'Stage 4': 70,
-    'Stage 5': 90
-  }
-  const stageBaseline = stageMap[twinInputs.stage] || 10
-
-  const stressScore = Math.max(0, Math.min(100, Math.round(
-    (hrvStress + hrStress + tempStress + hydrStress) * 0.4 + stageBaseline * 0.6
-  )))
-
-  let riskLevel: 'Low' | 'Moderate' | 'High' = 'Low'
-  if (stressScore > 65) {
-    riskLevel = 'High'
-  } else if (stressScore > 35) {
-    riskLevel = 'Moderate'
-  }
-
-  const stressColor = riskLevel === 'High' ? '#a01432' : riskLevel === 'Moderate' ? '#f59e0b' : '#10b981'
-  const stressCategory = riskLevel === 'High' ? 'Severe Stress' : riskLevel === 'Moderate' ? 'Moderate Stress' : 'Low Stress'
+  const stressColor = riskLevel === 'High' ? '#a01432' : riskLevel === 'Moderate' ? '#f59e0b' : riskLevel === 'Inactive' ? '#64748b' : '#10b981'
+  const stressCategory = riskLevel === 'High' ? 'Severe Stress' : riskLevel === 'Moderate' ? 'Moderate Stress' : riskLevel === 'Inactive' ? 'Inactive' : 'Low Stress'
 
   return (
-    <div className="wearable-page-container">
-      <header className="wearable-header">
+    <div className="wearable-page-container" style={{ maxWidth: '900px', margin: '0 auto', padding: '24px' }}>
+      <header className="wearable-header" style={{ marginBottom: '24px', textAlign: 'center' }}>
         <h1>
           <Icon name="activity" size={32} />
-          Digital Kidney Twin & Wearable
+          ESP32 Wearable Telemetry
         </h1>
-        <p>Real-time early warning trend analysis and multimodal sensor fusion pipeline.</p>
+        <p>Live biometric signals streamed from your custom hardware device.</p>
       </header>
 
       {error && (
@@ -493,541 +664,304 @@ export function WearablePage() {
         </div>
       )}
 
-      <div className="wearable-grid">
-        {/* LEFT COLUMN: Digital Kidney Twin & Configurator Panel */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        {/* Connection & Live Data Panel */}
         <section className="wearable-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #f3f4f6', paddingBottom: '12px' }}>
-            <h2 style={{ margin: 0, border: 'none', padding: 0 }}>
-              <Icon name="spark" size={22} />
-              Digital Kidney Twin
+            <h2 style={{ margin: 0, border: 'none', padding: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Icon name="activity" size={22} />
+              ESP32 Live Link
             </h2>
-            
-            {/* Mode Selector Toggle */}
-            <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold' }}>
-              <button 
-                type="button" 
-                onClick={() => setIsManualMode(false)}
-                style={{ padding: '4px 8px', border: 'none', background: !isManualMode ? 'white' : 'transparent', color: !isManualMode ? '#0f172a' : '#64748b', borderRadius: '6px', boxShadow: !isManualMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', cursor: 'pointer' }}
-              >
-                Telemetry Mode
-              </button>
-              <button 
-                type="button" 
-                onClick={() => setIsManualMode(true)}
-                style={{ padding: '4px 8px', border: 'none', background: isManualMode ? 'white' : 'transparent', color: isManualMode ? '#0f172a' : '#64748b', borderRadius: '6px', boxShadow: isManualMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', cursor: 'pointer' }}
-              >
-                Interactive Twin
-              </button>
-            </div>
+            <span className="pin-info-badge" style={{ backgroundColor: isHardwareActive ? '#e0f2fe' : '#f1f5f9', color: isHardwareActive ? '#0369a1' : '#64748b', fontWeight: 'bold' }}>
+              {isHardwareActive ? '🟢 ACTIVE' : '⚪ DISCONNECTED'}
+            </span>
           </div>
 
-          <div className="digital-twin-container">
-            <div className="twin-visualization" style={{ width: '100%', height: 'auto', marginBottom: '20px' }}>
-              <RotatingKidney3DCanvas stressScore={stressScore} riskLevel={riskLevel} />
-            </div>
+          <p style={{ fontSize: '13px', color: '#64748b', marginTop: '-8px', marginBottom: '16px' }}>
+            Pair over Bluetooth (BLE) or plug in via USB Serial to read real-time biometrics.
+          </p>
 
-            <div className="stress-metrics-panel" style={{ width: '100%' }}>
-              <div className="stress-index-value" style={{ color: stressColor, fontSize: '38px', fontWeight: 900 }}>
-                {stressScore}%
+          {/* Warnings if unsupported */}
+          {!isBluetoothSupported && isSerialSupported && (
+            <div style={{ background: '#fffbeb', padding: '12px 14px', borderRadius: '8px', border: '1px solid #fef3c7', fontSize: '12px', color: '#b45309', marginBottom: '16px', lineHeight: '1.5' }}>
+              ⚠️ <strong>Web Bluetooth Disabled:</strong> Bluetooth is disabled or unsupported in this browser/OS. Connect your ESP32 via USB and click <strong>"Connect USB"</strong>.
+            </div>
+          )}
+
+          {!isBluetoothSupported && !isSerialSupported && (
+            <div style={{ background: '#fff5f5', padding: '12px 14px', borderRadius: '8px', border: '1px solid #fee2e2', fontSize: '12px', color: '#b91c1c', marginBottom: '16px', lineHeight: '1.5' }}>
+              ❌ <strong>Browser APIs Unsupported:</strong> Your browser does not support Web Bluetooth or Web Serial. Use Google Chrome or MS Edge on desktop.
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '50%',
+                  backgroundColor: bluetoothStatus === 'connected' ? '#10b981' : bluetoothStatus === 'connecting' ? '#f59e0b' : '#94a3b8',
+                  boxShadow: bluetoothStatus === 'connected' ? '0 0 8px #10b981' : 'none'
+                }} />
+                <span style={{ fontSize: '14px', fontWeight: '600', color: '#0f172a' }}>
+                  {bluetoothStatus === 'connected' ? `Connected (${connectionType === 'ble' ? 'Bluetooth' : 'USB Serial'})` : bluetoothStatus === 'connecting' ? 'Connecting...' : 'Ready for Connection'}
+                </span>
               </div>
-              <div className="stress-label" style={{ fontWeight: 'bold', fontSize: '13.5px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                {stressCategory} Index
-              </div>
-              
-              <div className="stress-progress-bar" style={{ height: '8px', background: '#e2e8f0', borderRadius: '4px', margin: '12px 0 20px', overflow: 'hidden' }}>
-                <div
-                  className="stress-progress-fill"
+
+              {bluetoothStatus === 'connected' ? (
+                <button
+                  type="button"
+                  onClick={disconnectDevice}
                   style={{
-                    width: `${stressScore}%`,
-                    backgroundColor: stressColor,
-                    height: '100%',
-                    transition: 'width 0.4s ease'
+                    background: '#ef4444',
+                    color: 'white',
+                    border: 'none',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    transition: 'background 0.2s'
                   }}
-                />
-              </div>
-
-              {/* AI outputs */}
-              <div className="twin-quick-metrics">
-                <div className="quick-metric-tile">
-                  <span>Hydration</span>
-                  <strong style={{ color: hydrationScore < 50 ? '#a01432' : '#083b66' }}>{hydrationScore}%</strong>
-                </div>
-                <div className="quick-metric-tile">
-                  <span>Kidney Stress</span>
-                  <strong style={{ color: stressScore > 65 ? '#a01432' : '#083b66' }}>{stressScore}%</strong>
-                </div>
-                <div className="quick-metric-tile">
-                  <span>Risk Level</span>
-                  <strong style={{ color: stressColor }}>{riskLevel}</strong>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Configuration inputs */}
-          <div style={{ marginTop: '24px', borderTop: '1px solid #e5e7eb', paddingTop: '20px', textAlign: 'left' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 style={{ margin: 0, fontSize: '15px', color: '#083b66', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Icon name="lab" size={16} /> Twin Configurator {isManualMode ? '(Interactive)' : '(Locked to Telemetry)'}
-              </h3>
-              {isManualMode && (
-                <button 
-                  type="button" 
-                  onClick={() => {
-                    setTwinInputs({ hr: 72, hrv: 65, temperature: 36.6, waterIntake: 2000, age: 45, weight: 70, stage: 'Stage 1' })
-                  }} 
-                  style={{ fontSize: '11px', color: '#083b66', background: '#f1f5f9', border: 'none', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer' }}
                 >
-                  Reset Inputs
+                  Disconnect
                 </button>
+              ) : (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={connectBluetooth}
+                    disabled={bluetoothStatus === 'connecting' || !isBluetoothSupported}
+                    style={{
+                      background: isBluetoothSupported ? '#3b82f6' : '#94a3b8',
+                      color: 'white',
+                      border: 'none',
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      cursor: isBluetoothSupported ? 'pointer' : 'not-allowed',
+                      opacity: bluetoothStatus === 'connecting' ? 0.7 : 1,
+                      transition: 'background 0.2s'
+                    }}
+                  >
+                    Connect BLE
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={connectSerial}
+                    disabled={bluetoothStatus === 'connecting' || !isSerialSupported}
+                    style={{
+                      background: isSerialSupported ? '#0b7f72' : '#94a3b8',
+                      color: 'white',
+                      border: 'none',
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      cursor: isSerialSupported ? 'pointer' : 'not-allowed',
+                      opacity: bluetoothStatus === 'connecting' ? 0.7 : 1,
+                      transition: 'background 0.2s'
+                    }}
+                  >
+                    Connect USB
+                  </button>
+                </div>
               )}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', opacity: isManualMode ? 1 : 0.65, pointerEvents: isManualMode ? 'auto' : 'none', transition: 'opacity 0.2s' }}>
-              
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#475569' }}>
-                <span style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <strong>Heart Rate:</strong>
-                  <span>{twinInputs.hr} bpm</span>
-                </span>
-                <input 
-                  type="range" 
-                  min="40" 
-                  max="180" 
-                  value={twinInputs.hr} 
-                  onChange={(e) => setTwinInputs({ ...twinInputs, hr: parseInt(e.target.value) })} 
-                  style={{ width: '100%', accentColor: stressColor }} 
-                />
-              </label>
+            {/* Live Data Grid */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+              gap: '12px',
+              marginTop: '8px'
+            }}>
+              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Finger Sensor</div>
+                <div style={{
+                  marginTop: '8px',
+                  fontSize: '15px',
+                  fontWeight: 'bold',
+                  color: (isHardwareActive && bleData.fingerDetected) ? '#10b981' : '#f59e0b'
+                }}>
+                  {isHardwareActive ? (bleData.fingerDetected ? '👉 Detected' : '⚠️ No Finger') : '--'}
+                </div>
+              </div>
 
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#475569' }}>
-                <span style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <strong>Heart Rate Variability (HRV):</strong>
-                  <span>{twinInputs.hrv} ms</span>
-                </span>
-                <input 
-                  type="range" 
-                  min="5" 
-                  max="150" 
-                  value={twinInputs.hrv} 
-                  onChange={(e) => setTwinInputs({ ...twinInputs, hrv: parseInt(e.target.value) })} 
-                  style={{ width: '100%', accentColor: stressColor }} 
-                />
-              </label>
+              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Heart Rate</div>
+                <div style={{ marginTop: '8px', fontSize: '20px', fontWeight: '900', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                  {isHardwareActive && bleData.heartRate !== null ? `${bleData.heartRate} bpm` : '--'}
+                  {isHardwareActive && bleData.heartRate !== null && bleData.fingerDetected && (
+                    <span style={{ display: 'inline-block', width: '8px', height: '8px', background: '#ef4444', borderRadius: '50%', animation: 'pulse 1s infinite' }} />
+                  )}
+                </div>
+              </div>
 
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#475569' }}>
-                <span style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <strong>Skin Temperature:</strong>
-                  <span>{twinInputs.temperature.toFixed(1)} °C</span>
-                </span>
-                <input 
-                  type="range" 
-                  min="35" 
-                  max="41" 
-                  step="0.1"
-                  value={twinInputs.temperature} 
-                  onChange={(e) => setTwinInputs({ ...twinInputs, temperature: parseFloat(e.target.value) })} 
-                  style={{ width: '100%', accentColor: stressColor }} 
-                />
-              </label>
+              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Blood Oxygen (SpO₂)</div>
+                <div style={{ marginTop: '8px', fontSize: '20px', fontWeight: '900', color: '#083b66' }}>
+                  {isHardwareActive && bleData.spo2 !== null ? `${bleData.spo2}%` : '--'}
+                </div>
+              </div>
 
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#475569' }}>
-                <span style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <strong>Water Intake:</strong>
-                  <span>{twinInputs.waterIntake} ml</span>
-                </span>
-                <input 
-                  type="range" 
-                  min="0" 
-                  max="4000" 
-                  step="50"
-                  value={twinInputs.waterIntake} 
-                  onChange={(e) => setTwinInputs({ ...twinInputs, waterIntake: parseInt(e.target.value) })} 
-                  style={{ width: '100%', accentColor: stressColor }} 
-                />
-              </label>
-
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#475569' }}>
-                <span style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <strong>Patient Age:</strong>
-                  <span>{twinInputs.age} Yrs</span>
-                </span>
-                <input 
-                  type="range" 
-                  min="5" 
-                  max="100" 
-                  value={twinInputs.age} 
-                  onChange={(e) => setTwinInputs({ ...twinInputs, age: parseInt(e.target.value) })} 
-                  style={{ width: '100%', accentColor: stressColor }} 
-                />
-              </label>
-
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#475569' }}>
-                <span style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <strong>Patient Weight:</strong>
-                  <span>{twinInputs.weight} kg</span>
-                </span>
-                <input 
-                  type="range" 
-                  min="30" 
-                  max="150" 
-                  value={twinInputs.weight} 
-                  onChange={(e) => setTwinInputs({ ...twinInputs, weight: parseInt(e.target.value) })} 
-                  style={{ width: '100%', accentColor: stressColor }} 
-                />
-              </label>
-
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#475569', gridColumn: 'span 2' }}>
-                <strong>Existing Kidney Disease Stage:</strong>
-                <select 
-                  value={twinInputs.stage} 
-                  onChange={(e) => setTwinInputs({ ...twinInputs, stage: e.target.value })}
-                  style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', color: '#0f172a', fontWeight: 'bold' }}
-                >
-                  <option value="Stage 1">Stage 1: Normal or high GFR (eGFR &ge; 90)</option>
-                  <option value="Stage 2">Stage 2: Mild GFR decrease (eGFR 60-89)</option>
-                  <option value="Stage 3">Stage 3: Moderate GFR decrease (eGFR 30-59)</option>
-                  <option value="Stage 4">Stage 4: Severe GFR decrease (eGFR 15-29)</option>
-                  <option value="Stage 5">Stage 5: Kidney failure (eGFR &lt; 15)</option>
-                </select>
-              </label>
+              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Skin Temperature</div>
+                <div style={{ marginTop: '8px', fontSize: '20px', fontWeight: '900', color: '#0b7f72' }}>
+                  {isHardwareActive && bleData.temperature !== null ? `${bleData.temperature.toFixed(1)} °C` : '--'}
+                </div>
+              </div>
             </div>
 
-            {!isManualMode && (
-              <div style={{ marginTop: '12px', background: '#f8fafc', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '11px', color: '#64748b' }}>
-                💡 <strong>Telemetry Locked Mode:</strong> Sliders are currently linked to the ESP32 sensor simulation values. Click <strong>"Interactive Twin"</strong> at the top right of this card to unlock sliders and manually configure patient telemetry trends.
+            {isHardwareActive && bleData.ir !== null && (
+              <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', background: '#f1f5f9', padding: '6px', borderRadius: '6px' }}>
+                Raw Sensor Reflectivity (IR): <strong>{bleData.ir.toLocaleString()}</strong>
               </div>
             )}
           </div>
         </section>
 
-        {/* RIGHT COLUMN: Interactive Hardware Schematic & Scenarios */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-          {/* Hardware Schematic */}
+        {/* AI Bio-Analysis & Alerts */}
+        {isHardwareActive && current && (
           <section className="wearable-card">
-            <h2>
-              <Icon name="lab" size={22} />
-              ESP32 Wearable Wiring Schematic
+            <h2 style={{ margin: 0, border: 'none', padding: 0, marginBottom: '16px' }}>
+              <Icon name="spark" size={22} />
+              AI Analysis & Risks
             </h2>
-            <div className="hardware-schematic-container">
-              <div className="esp32-visual-board">
-                <div className="schematic-pins-layout">
-                  {/* Left Pin Column */}
-                  <div className="pin-column">
-                    <button
-                      type="button"
-                      className={`esp32-pin ${selectedPin === 'G34' ? 'active-pin' : ''}`}
-                      onClick={() => setSelectedPin('G34')}
-                    >
-                      G34 (ECG Out)
-                    </button>
-                    <button
-                      type="button"
-                      className={`esp32-pin ${selectedPin === 'G25' ? 'active-pin' : ''}`}
-                      onClick={() => setSelectedPin('G25')}
-                    >
-                      G25 (LO+)
-                    </button>
-                    <button
-                      type="button"
-                      className={`esp32-pin ${selectedPin === 'G26' ? 'active-pin' : ''}`}
-                      onClick={() => setSelectedPin('G26')}
-                    >
-                      G26 (LO-)
-                    </button>
-                    <button
-                      type="button"
-                      className={`esp32-pin ${selectedPin === 'G4' ? 'active-pin' : ''}`}
-                      onClick={() => setSelectedPin('G4')}
-                    >
-                      G4 (1-Wire)
-                    </button>
-                  </div>
 
-                  {/* Right Pin Column */}
-                  <div className="pin-column">
-                    <button
-                      type="button"
-                      className={`esp32-pin ${selectedPin === 'G21' ? 'active-pin' : ''}`}
-                      onClick={() => setSelectedPin('G21')}
-                    >
-                      G21 (SDA PPG)
-                    </button>
-                    <button
-                      type="button"
-                      className={`esp32-pin ${selectedPin === 'G22' ? 'active-pin' : ''}`}
-                      onClick={() => setSelectedPin('G22')}
-                    >
-                      G22 (SCL PPG)
-                    </button>
-                    <button
-                      type="button"
-                      className={`esp32-pin ${selectedPin === 'G35' ? 'active-pin' : ''}`}
-                      onClick={() => setSelectedPin('G35')}
-                    >
-                      G35 (Sweat)
-                    </button>
-                    <button
-                      type="button"
-                      className={`esp32-pin ${selectedPin === 'G32' ? 'active-pin' : ''}`}
-                      onClick={() => setSelectedPin('G32')}
-                    >
-                      G32 (SDA Impedance)
-                    </button>
-                    <button
-                      type="button"
-                      className={`esp32-pin ${selectedPin === 'G33' ? 'active-pin' : ''}`}
-                      onClick={() => setSelectedPin('G33')}
-                    >
-                      G33 (SCL Impedance)
-                    </button>
-                  </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+              <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold' }}>HYDRATION STATUS</span>
+                <div style={{ fontSize: '16px', fontWeight: '800', color: hydrationScore < 50 ? '#a01432' : '#083b66', marginTop: '4px' }}>
+                  {current.hydration_status}
                 </div>
-                <div className="esp32-usb-port" />
               </div>
-
-              {selectedPin && PIN_DETAILS[selectedPin] && (
-                <div className="pin-info-detail-box">
-                  <h4>
-                    {PIN_DETAILS[selectedPin].pin} - {PIN_DETAILS[selectedPin].sensor}
-                  </h4>
-                  <div style={{ marginBottom: 8 }}>
-                    <span className="pin-info-badge">{PIN_DETAILS[selectedPin].voltage}</span>
-                  </div>
-                  <p>{PIN_DETAILS[selectedPin].description}</p>
-                  <div style={{ fontSize: 11, color: '#64748b' }}>
-                    <strong>Signal Proxy:</strong> {PIN_DETAILS[selectedPin].proxy}
-                  </div>
-                  {selectedPin === 'G34' && current && (
-                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e2e8f0', fontSize: 12, color: '#0f172a' }}>
-                      <strong>Simulated Waveform Metrics:</strong>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
-                        <div>T-Wave Amp: {current.t_wave_amplitude} mV</div>
-                        <div>QRS (R-Wave) Amp: {current.qrs_amplitude} mV</div>
-                        <div style={{ gridColumn: 'span 2' }}>
-                          Ratio (T/QRS): <strong style={{ color: (current.t_wave_amplitude && current.qrs_amplitude && (current.t_wave_amplitude / current.qrs_amplitude) > 0.5) ? '#a01432' : 'inherit' }}>
-                            {(current.t_wave_amplitude && current.qrs_amplitude) ? (current.t_wave_amplitude / current.qrs_amplitude).toFixed(2) : '0.15'}
-                          </strong>
-                          {current.hyperkalemia_pattern ? ' (Peaked T-wave anomaly flagged)' : ''}
-                        </div>
-                      </div>
-                    </div>
-                  )}
+              <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold' }}>KIDNEY STRESS INDEX</span>
+                <div style={{ fontSize: '16px', fontWeight: '800', color: stressColor, marginTop: '4px' }}>
+                  {stressScore}%
                 </div>
-              )}
-            </div>
-          </section>
-
-          {/* Scenario Simulator */}
-          <section className="wearable-card">
-            <h2>
-              <Icon name="chef" size={22} />
-              Interactive Telemetry Simulator
-            </h2>
-            <div className="scenario-selector-grid">
-              <button
-                type="button"
-                className={`scenario-btn ${activeScenario === 'normal' ? 'active' : ''}`}
-                onClick={() => handleScenarioChange('normal')}
-                disabled={submittingScenario}
-              >
-                <strong>Normal Baseline</strong>
-                <span>Resting parameters</span>
-              </button>
-
-              <button
-                type="button"
-                className={`scenario-btn ${activeScenario === 'dehydration' ? 'active' : ''}`}
-                onClick={() => handleScenarioChange('dehydration')}
-                disabled={submittingScenario}
-              >
-                <strong>Dehydration</strong>
-                <span>High sweat, high HR</span>
-              </button>
-
-              <button
-                type="button"
-                className={`scenario-btn ${activeScenario === 'electrolyte' ? 'active' : ''}`}
-                onClick={() => handleScenarioChange('electrolyte')}
-                disabled={submittingScenario}
-              >
-                <strong>Electrolyte Risk</strong>
-                <span>ECG anomaly, high sweat</span>
-              </button>
-
-              <button
-                type="button"
-                className={`scenario-btn ${activeScenario === 'fluid' ? 'active' : ''}`}
-                onClick={() => handleScenarioChange('fluid')}
-                disabled={submittingScenario}
-              >
-                <strong>Fluid Overload</strong>
-                <span>Low bioimpedance</span>
-              </button>
+              </div>
+              <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold' }}>RISK LEVEL</span>
+                <div style={{ fontSize: '16px', fontWeight: '800', color: stressColor, marginTop: '4px' }}>
+                  {riskLevel}
+                </div>
+              </div>
             </div>
 
-            {/* AI Risk Flags & Banners */}
-            <div className="alerts-status-box">
-              {current && current.hyperkalemia_pattern && (
+            {/* AI Warning Banners */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {current.hyperkalemia_pattern && (
                 <div className="alert-message-card danger">
-                  <div>
-                    <strong>ECG Alert: Hyperkalemic Pattern Detected</strong>
-                    <span style={{ fontSize: 13 }}>
-                      ECG analysis detects a peaked T-wave amplitude anomaly (T/QRS ratio: {current && current.t_wave_amplitude && current.qrs_amplitude ? (current.t_wave_amplitude / current.qrs_amplitude).toFixed(2) : '0.60'}) coupled with elevated sweat conductivity.
-                    </span>
-                  </div>
+                  <strong>ECG Alert: Hyperkalemic Pattern</strong>
+                  <span style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
+                    ECG analysis detects a peaked T-wave amplitude anomaly (T/QRS ratio: {(current.t_wave_amplitude && current.qrs_amplitude) ? (current.t_wave_amplitude / current.qrs_amplitude).toFixed(2) : '0.60'}).
+                  </span>
                 </div>
               )}
 
-              {current && current.hydration_status === 'Severe Dehydration' && (
+              {current.hydration_status === 'Severe Dehydration' && (
                 <div className="alert-message-card warning">
-                  <div>
-                    <strong>Dehydration Alert: Extreme Dehydration Risk</strong>
-                    <span style={{ fontSize: 13 }}>
-                      Sweat conductivity exceeds baseline by &gt;25% and heart rate variability (HRV) has dropped significantly.
-                    </span>
-                  </div>
+                  <strong>Dehydration Alert: Extreme Risk</strong>
+                  <span style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
+                    Sweat conductivity exceeds baseline by &gt;25% and heart rate variability (HRV) has dropped.
+                  </span>
                 </div>
               )}
 
-              {current && current.fluid_retention === 'Severe Retention' && (
+              {current.fluid_retention === 'Severe Retention' && (
                 <div className="alert-message-card warning">
-                  <div>
-                    <strong>Fluid Retention Alert: Systemic Congestion Risk</strong>
-                    <span style={{ fontSize: 13 }}>
-                      Bioimpedance has drifted down to {current.bioimpedance} Ω, representing a significant increase in extracellular fluid volume.
-                    </span>
-                  </div>
+                  <strong>Fluid Retention Alert: Systemic Congestion</strong>
+                  <span style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
+                    Bioimpedance has drifted down to {current.bioimpedance} Ω, indicating extracellular fluid retention.
+                  </span>
                 </div>
               )}
 
-              {current && activeScenario === 'normal' && (
+              {!current.hyperkalemia_pattern && current.hydration_status !== 'Severe Dehydration' && current.fluid_retention !== 'Severe Retention' && (
                 <div className="alert-message-card success">
-                  <div>
-                    <strong>All Systems Normal</strong>
-                    <span style={{ fontSize: 13 }}>
-                      Wearable sensors report optimal biometric values. Digital Twin synchronized.
-                    </span>
-                  </div>
+                  <strong>All Systems Normal</strong>
+                  <span style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
+                    Wearable sensors report optimal biometric values.
+                  </span>
                 </div>
               )}
-            </div>
-
-            <div className="clinical-disclaimer-box">
-              <strong>Clinical safety note:</strong> Sweat conductivity sensors track electrolyte concentration trends rather than absolute diagnostic values. Sweat biomarker concentration lags blood by roughly 10–30 minutes.
             </div>
           </section>
+        )}
+
+        {/* Clinical safety note */}
+        <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '12px', color: '#64748b' }}>
+          💡 <strong>Clinical safety note:</strong> Biometric sensors track physiological trends rather than absolute diagnostic values. Readings can lag blood serum concentrations by roughly 10–30 minutes.
         </div>
       </div>
 
       {/* BOTTOM SECTION: 7-Day Trend Charts */}
-      <h2 className="charts-section-title">Multimodal Sensor Trends (7-Day Rolling)</h2>
-      <div className="wearable-charts-grid">
-        {/* Heart Rate & HRV */}
-        <article className="chart-card">
-          <h3>
-            Heart Rate & HRV Trend
-            <span>Sympathetic Stress Proxy</span>
-          </h3>
-          <div className="chart-container-wrapper">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorHr" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0} />
-                  </linearGradient>
-                  <linearGradient id="colorHrv" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                <XAxis dataKey="dayLabel" stroke="#9ca3af" fontSize={11} />
-                <YAxis stroke="#9ca3af" fontSize={11} />
-                <Tooltip />
-                <Area type="monotone" name="Heart Rate (bpm)" dataKey="heart_rate" stroke="#3b82f6" strokeWidth={2.5} fillOpacity={1} fill="url(#colorHr)" />
-                <Area type="monotone" name="HRV (ms)" dataKey="hrv" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorHrv)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </article>
+      {history.length > 0 && (
+        <>
+          <h2 className="charts-section-title" style={{ marginTop: '32px' }}>Sensor Trends History</h2>
+          <div className="wearable-charts-grid">
+            {/* Heart Rate & HRV */}
+            <article className="chart-card">
+              <h3>
+                Heart Rate & HRV Trend
+                <span>Sympathetic Stress Proxy</span>
+              </h3>
+              <div className="chart-container-wrapper">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorHr" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0} />
+                      </linearGradient>
+                      <linearGradient id="colorHrv" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                    <XAxis dataKey="dayLabel" stroke="#9ca3af" fontSize={11} />
+                    <YAxis stroke="#9ca3af" fontSize={11} />
+                    <Tooltip />
+                    <Area type="monotone" name="Heart Rate (bpm)" dataKey="heart_rate" stroke="#3b82f6" strokeWidth={2.5} fillOpacity={1} fill="url(#colorHr)" />
+                    <Area type="monotone" name="HRV (ms)" dataKey="hrv" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorHrv)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </article>
 
-        {/* Sweat Conductivity */}
-        <article className="chart-card">
-          <h3>
-            Sweat Conductivity
-            <span>Electrolyte & Ion Loss (Na⁺/K⁺ Proxy)</span>
-          </h3>
-          <div className="chart-container-wrapper">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorSweat" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                <XAxis dataKey="dayLabel" stroke="#9ca3af" fontSize={11} />
-                <YAxis stroke="#9ca3af" fontSize={11} />
-                <Tooltip />
-                <Area type="monotone" name="Sweat Conductivity (μS)" dataKey="sweat_conductivity" stroke="#f59e0b" strokeWidth={2.5} fillOpacity={1} fill="url(#colorSweat)" />
-              </AreaChart>
-            </ResponsiveContainer>
+            {/* Sweat Conductivity */}
+            <article className="chart-card">
+              <h3>
+                Sweat Conductivity
+                <span>Electrolyte & Ion Loss (Na⁺/K⁺ Proxy)</span>
+              </h3>
+              <div className="chart-container-wrapper">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorCond" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                    <XAxis dataKey="dayLabel" stroke="#9ca3af" fontSize={11} />
+                    <YAxis stroke="#9ca3af" fontSize={11} />
+                    <Tooltip />
+                    <Area type="monotone" name="Sweat Conductivity (μS)" dataKey="sweat_conductivity" stroke="#f59e0b" strokeWidth={2.5} fillOpacity={1} fill="url(#colorCond)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </article>
           </div>
-        </article>
-
-        {/* Bioimpedance (Fluid) */}
-        <article className="chart-card">
-          <h3>
-            Bioimpedance Spectroscopy
-            <span>Extracellular Fluid Volume (Tissue Hydration)</span>
-          </h3>
-          <div className="chart-container-wrapper">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorBioimp" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#a01432" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#a01432" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                <XAxis dataKey="dayLabel" stroke="#9ca3af" fontSize={11} />
-                <YAxis stroke="#9ca3af" fontSize={11} domain={[250, 600]} />
-                <Tooltip />
-                <Area type="monotone" name="Bioimpedance (Ω)" dataKey="bioimpedance" stroke="#a01432" strokeWidth={2.5} fillOpacity={1} fill="url(#colorBioimp)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </article>
-
-        {/* Skin Temperature */}
-        <article className="chart-card">
-          <h3>
-            Skin Temperature
-            <span>Inflammation & Local Vasodilation Proxy</span>
-          </h3>
-          <div className="chart-container-wrapper">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0b7f72" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#0b7f72" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                <XAxis dataKey="dayLabel" stroke="#9ca3af" fontSize={11} />
-                <YAxis stroke="#9ca3af" fontSize={11} domain={[36.0, 38.0]} />
-                <Tooltip />
-                <Area type="monotone" name="Skin Temp (°C)" dataKey="skin_temp" stroke="#0b7f72" strokeWidth={2.5} fillOpacity={1} fill="url(#colorTemp)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </article>
-      </div>
+        </>
+      )}
     </div>
   )
 }
