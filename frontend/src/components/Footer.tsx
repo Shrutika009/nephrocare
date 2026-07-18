@@ -164,18 +164,5 @@ export function Footer({ showPage, scrollTo, addToast }: FooterProps) {
     </div>
     </div>
 
-    {/* Footer Bottom */}
-    <div className="footer-bottom">
-      <div className="footer-bottom-left">
-        <span>© 2026 NephroCare. All rights reserved.</span>
-        <span className="footer-subtext">Empowering kidney health with proactive AI screening.</span>
-      </div>
-      <div className="footer-bottom-links">
-        <button type="button" onClick={() => showPage('settings')}>Privacy Policy</button>
-        <button type="button" onClick={() => showPage('settings')}>Terms of Service</button>
-        <button type="button" onClick={() => showPage('settings')}>Medical Disclaimer</button>
-        <button type="button" onClick={() => showPage('settings')}>Cookie Settings</button>
-      </div>
-    </div>
   </footer>
 }
