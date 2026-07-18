@@ -189,26 +189,27 @@ export function VoiceAssistPage({ showPage, user }: VoiceAssistPageProps) {
   }
 
   return (
-    <div className="wearable-page-container" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '28px', minHeight: 'calc(100vh - 120px)', padding: '20px' }}>
+    <div className="voice-page-layout wearable-page-container" style={{ minHeight: 'calc(100vh - 120px)', padding: '20px' }}>
       {/* LEFT COLUMN: Main Voice Analysis Workspace */}
       <div className="wearable-card" style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '28px' }}>
         {/* Workspace Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', marginBottom: '24px' }}>
-          <div>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#083b66', margin: 0, fontSize: '22px' }}>
-              <span style={{ color: 'var(--blue)', display: 'inline-flex' }}><Icon name="mic" size={24} /></span>
-              Voice Prescription Assist
-            </h2>
-            <p style={{ margin: '4px 0 0', fontSize: '13.5px', color: '#64748b' }}>
-              Speak or upload audio to analyze prescriptions for kidney safety and drug interactions.
-            </p>
+        <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', marginBottom: '24px' }}>
+          {/* Close button pinned to top-right */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+            <button 
+              onClick={() => showPage('home')}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '20px', color: '#64748b', cursor: 'pointer', fontSize: '12px', padding: '4px 12px' }}
+            >
+              <Icon name="x" size={14} /> Close
+            </button>
           </div>
-          <button 
-            onClick={() => showPage('home')}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '13px' }}
-          >
-            <Icon name="x" size={16} /> Close
-          </button>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#083b66', margin: 0, fontSize: '22px' }}>
+            <span style={{ color: 'var(--blue)', display: 'inline-flex' }}><Icon name="mic" size={24} /></span>
+            Voice Prescription Assist
+          </h2>
+          <p style={{ margin: '4px 0 0', fontSize: '13.5px', color: '#64748b' }}>
+            Speak or upload audio to analyze prescriptions for kidney safety and drug interactions.
+          </p>
         </div>
 
         {/* Recording Controls Card */}
@@ -240,42 +241,21 @@ export function VoiceAssistPage({ showPage, user }: VoiceAssistPageProps) {
               </button>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-              <div style={{ display: 'flex', gap: '16px', width: '100%', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', width: '100%' }}>
+              <div className="voice-btn-row">
                 <button 
                   onClick={startRecording}
                   disabled={loading}
-                  style={{
-                    background: 'var(--blue)',
-                    border: 'none',
-                    color: 'white',
-                    padding: '12px 28px',
-                    borderRadius: '30px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    opacity: loading ? 0.6 : 1
-                  }}
+                  className="voice-record-btn"
                 >
                   <Icon name="mic" size={18} /> Start Recording
                 </button>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <span style={{ fontSize: '13px', color: '#64748b' }}>or</span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                  <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
+                  <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 600 }}>or</span>
+                  <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
                 </div>
-                <label style={{
-                  border: '1px dashed #cbd5e1',
-                  borderRadius: '30px',
-                  padding: '12px 28px',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  color: '#475569',
-                  background: 'white',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}>
+                <label className="voice-upload-btn">
                   <Icon name="camera" size={18} /> Upload Audio
                   <input type="file" accept="audio/*" onChange={handleFileChange} style={{ display: 'none' }} />
                 </label>
@@ -358,7 +338,7 @@ export function VoiceAssistPage({ showPage, user }: VoiceAssistPageProps) {
             </div>
 
             {/* Grid of Medications and Interactions */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div className="progression-kpi-grid">
               {/* Medications */}
               <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px' }}>
                 <h4 style={{ margin: '0 0 12px', color: '#0f172a', fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -463,7 +443,7 @@ export function VoiceAssistPage({ showPage, user }: VoiceAssistPageProps) {
             </div>
 
             {/* Patient & Doctor Summaries */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div className="progression-kpi-grid">
               <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px' }}>
                 <h4 style={{ margin: '0 0 8px', color: '#0f172a', fontSize: '14px', fontWeight: 600 }}>Patient Summary</h4>
                 <div style={{ fontSize: '13px', color: '#475569', lineHeight: 1.5, whiteSpace: 'pre-line' }}>

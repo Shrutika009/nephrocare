@@ -144,32 +144,34 @@ function PredictionResultView({ result, activeReport, setPredictionStep, showPag
         <h2 style={{ color: '#083b66', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', fontSize: '16px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'left' }}>
           <Icon name="activity" size={18} /> BIOCHEMISTRY & RENAL FUNCTION PANEL
         </h2>
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '12px', fontSize: '13px', textAlign: 'left' }}>
-          <thead>
-            <tr style={{ background: '#f1f5f9', borderBottom: '1.5px solid #cbd5e1', fontWeight: '700' }}>
-              <th style={{ padding: '10px 12px' }}>Test Parameter</th>
-              <th style={{ padding: '10px 12px' }}>Observed Value</th>
-              <th style={{ padding: '10px 12px' }}>Reference Interval</th>
-              <th style={{ padding: '10px 12px' }}>Unit</th>
-              <th style={{ padding: '10px 12px' }}>Status Flag</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, idx) => (
-              <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                <td style={{ padding: '10px 12px', fontWeight: '500' }}>{row.name}</td>
-                <td style={{ padding: '10px 12px', color: row.flag !== 'NORMAL' ? 'var(--maroon)' : 'inherit', fontWeight: '700' }}>{row.val}</td>
-                <td style={{ padding: '10px 12px' }}>{row.ref}</td>
-                <td style={{ padding: '10px 12px' }}>{row.unit}</td>
-                <td style={{ padding: '10px 12px', fontWeight: 'bold', color: row.flag !== 'NORMAL' ? 'var(--maroon)' : '#16a34a' }}>{row.flag}</td>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
+          <table style={{ width: '100%', minWidth: '500px', borderCollapse: 'collapse', marginTop: '12px', fontSize: '13px', textAlign: 'left' }}>
+            <thead>
+              <tr style={{ background: '#f1f5f9', borderBottom: '1.5px solid #cbd5e1', fontWeight: '700' }}>
+                <th style={{ padding: '10px 12px' }}>Test Parameter</th>
+                <th style={{ padding: '10px 12px' }}>Observed Value</th>
+                <th style={{ padding: '10px 12px' }}>Reference Interval</th>
+                <th style={{ padding: '10px 12px' }}>Unit</th>
+                <th style={{ padding: '10px 12px' }}>Status Flag</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row, idx) => (
+                <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                  <td style={{ padding: '10px 12px', fontWeight: '500' }}>{row.name}</td>
+                  <td style={{ padding: '10px 12px', color: row.flag !== 'NORMAL' ? 'var(--maroon)' : 'inherit', fontWeight: '700' }}>{row.val}</td>
+                  <td style={{ padding: '10px 12px' }}>{row.ref}</td>
+                  <td style={{ padding: '10px 12px' }}>{row.unit}</td>
+                  <td style={{ padding: '10px 12px', fontWeight: 'bold', color: row.flag !== 'NORMAL' ? 'var(--maroon)' : '#16a34a' }}>{row.flag}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Assessment and Recommendations grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '28px', textAlign: 'left' }}>
+      <div className="progression-kpi-grid" style={{ marginBottom: '28px', textAlign: 'left' }}>
         <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '8px', padding: '16px' }}>
           <h3 style={{ margin: '0 0 8px', color: '#b45309', fontSize: '14px', fontWeight: '700' }}>
             ESTIMATED CKD RISK EVALUATION
@@ -224,18 +226,18 @@ function PredictionResultView({ result, activeReport, setPredictionStep, showPag
           </h2>
 
           {/* Current Stage + Decline Rate KPIs */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-            <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '10px', padding: '18px', textAlign: 'center' }}>
+          <div className="progression-kpi-grid" style={{ marginBottom: '24px' }}>
+            <div className="kpi-card" style={{ background: '#fef3c7', border: '1px solid #fde68a' }}>
               <div style={{ fontSize: '11px', fontWeight: '600', color: '#92400e', textTransform: 'uppercase', marginBottom: '6px' }}>Current Stage (XGBoost)</div>
               <div style={{ fontSize: '36px', fontWeight: '900', color: '#b45309' }}>{stageResult.current_stage}</div>
               <div style={{ fontSize: '11px', color: '#a16207', marginTop: '4px' }}>Confidence: {((stageResult.stage_probabilities[stageResult.current_stage] || 0) * 100).toFixed(1)}%</div>
             </div>
-            <div style={{ background: '#fce4ec', border: '1px solid #f8bbd0', borderRadius: '10px', padding: '18px', textAlign: 'center' }}>
+            <div className="kpi-card" style={{ background: '#fce4ec', border: '1px solid #f8bbd0' }}>
               <div style={{ fontSize: '11px', fontWeight: '600', color: '#880e4f', textTransform: 'uppercase', marginBottom: '6px' }}>eGFR Decline Rate (DNN)</div>
               <div style={{ fontSize: '36px', fontWeight: '900', color: '#ad1457' }}>{stageResult.annual_decline_rate}</div>
               <div style={{ fontSize: '11px', color: '#c62828', marginTop: '4px' }}>mL/min/1.73m²/year</div>
             </div>
-            <div style={{ background: '#e8f5e9', border: '1px solid #c8e6c9', borderRadius: '10px', padding: '18px', textAlign: 'center' }}>
+            <div className="kpi-card" style={{ background: '#e8f5e9', border: '1px solid #c8e6c9' }}>
               <div style={{ fontSize: '11px', fontWeight: '600', color: '#2e7d32', textTransform: 'uppercase', marginBottom: '6px' }}>Current eGFR</div>
               <div style={{ fontSize: '36px', fontWeight: '900', color: '#1b5e20' }}>{stageResult.egfr ?? 'N/A'}</div>
               <div style={{ fontSize: '11px', color: '#388e3c', marginTop: '4px' }}>mL/min/1.73m²</div>

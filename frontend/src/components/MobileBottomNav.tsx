@@ -35,11 +35,11 @@ export function MobileBottomNav({ showPage, currentPage }: MobileBottomNavProps)
       </button>
 
       <button 
-        className={`mobile-nav-btn settings-btn ${currentPage === 'settings' ? 'active' : ''}`}
-        onClick={() => showPage('settings')}
+        className={`mobile-nav-btn twin-btn ${currentPage === 'wearable' ? 'active' : ''}`}
+        onClick={() => showPage('wearable')}
       >
-        <Icon name="settings" size={20} />
-        <span>Set</span>
+        <Icon name="clock" size={20} />
+        <span>Twin</span>
       </button>
 
       <button 
@@ -51,14 +51,16 @@ export function MobileBottomNav({ showPage, currentPage }: MobileBottomNavProps)
       </button>
     </nav>
     
-    {/* Floating AI Assist Button */}
-    <button 
-      className={`mobile-fab-ai ${currentPage === 'chatbot' ? 'active' : ''}`}
-      onClick={() => showPage('chatbot')}
-      title="AI Assistant"
-    >
-      <Icon name="message-circle" size={24} />
-    </button>
+    {/* Floating AI Assist Button — hidden on chatbot page */}
+    {currentPage !== 'chatbot' && (
+      <button 
+        className="mobile-fab-ai"
+        onClick={() => showPage('chatbot')}
+        title="AI Assistant"
+      >
+        <Icon name="message-circle" size={24} />
+      </button>
+    )}
     </>
   )
 }

@@ -220,7 +220,7 @@ function ScanFoodPanel({ foodScan, foodImagePreview, foodLoading, scanFoodImage,
       <div className={cameraOn || selectedPreview || foodImagePreview ? 'camera-drop has-preview' : 'camera-drop'}>
         {cameraOn && <video ref={videoRef} playsInline muted />}
         {!cameraOn && (selectedPreview || foodImagePreview) && <img src={selectedPreview || foodImagePreview} alt="Selected food preview" />}
-        {!cameraOn && !selectedPreview && !foodImagePreview && <div>
+        {!cameraOn && !selectedPreview && !foodImagePreview && <div onClick={startCamera} style={{ cursor: 'pointer' }}>
           <Icon name="camera" size={34} />
           <strong>Start camera or upload food photo</strong>
           <small>Live scan, JPG, PNG, WEBP</small>

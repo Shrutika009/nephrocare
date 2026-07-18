@@ -36,6 +36,7 @@ export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpe
   const [language, setLanguage] = useState(() => localStorage.getItem('nephrocare_language') || 'en')
   const dropdownRef = useRef<HTMLDivElement>(null)
   const langDropdownRef = useRef<HTMLDivElement>(null)
+  const mobileDropdownRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLElement>(null)
 
   const handleLanguageChange = async (newLang: string) => {
@@ -77,9 +78,10 @@ export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpe
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      // Close user dropdown when clicking outside it
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setUserMenuOpen(false)
+        if (mobileDropdownRef.current && !mobileDropdownRef.current.contains(event.target as Node)) {
+          setUserMenuOpen(false)
+        }
       }
       if (langDropdownRef.current && !langDropdownRef.current.contains(event.target as Node)) {
         setLangMenuOpen(false)
@@ -219,12 +221,40 @@ export function Header({ mobileOpen, featuresOpen, setMobileOpen, setFeaturesOpe
         </button>
       )}
       {user && (
-        <button 
-          className="mobile-login-btn mobile-user-btn" 
-          onClick={() => { setUserMenuOpen(!userMenuOpen); }}
-        >
-          {user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
-        </button>
+        <div className="mobile-user-profile-container" ref={mobileDropdownRef} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <button 
+            className="mobile-login-btn mobile-user-btn" 
+            onClick={() => { setUserMenuOpen(!userMenuOpen); }}
+          >
+            {user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+          </button>
+          
+          {userMenuOpen && (
+            <div className="user-dropdown" style={{ right: 0, top: 'calc(100% + 8px)' }}>
+              <button 
+                type="button" 
+                className="dropdown-logout-btn"
+                style={{ color: '#236d9f', borderBottom: '1px solid #F1F5F9', marginBottom: '4px' }}
+                onClick={() => {
+                  showPage('settings');
+                  setUserMenuOpen(false);
+                }}
+              >
+                <Icon name="settings" size={16} /> Settings
+              </button>
+              <button 
+                type="button" 
+                className="dropdown-logout-btn" 
+                onClick={() => {
+                  onLogout();
+                  setUserMenuOpen(false);
+                }}
+              >
+                <Icon name="log-out" size={16} /> Log out
+              </button>
+            </div>
+          )}
+        </div>
       )}
       <button className="mobile-menu" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Toggle menu"><Icon name={mobileOpen ? 'x' : 'menu'} /></button>
     </div>

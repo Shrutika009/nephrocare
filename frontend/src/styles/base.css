@@ -723,7 +723,7 @@ html, body, .settings-page, .settings-content, .settings-sidebar,
 .mobile-nav-btn.home-btn.active { color: #2563eb; } /* Blue */
 .mobile-nav-btn.risk-btn.active { color: #e11d48; } /* Rose/Red */
 .mobile-nav-btn.diet-btn.active { color: #16a34a; } /* Green */
-.mobile-nav-btn.settings-btn.active { color: #f59e0b; } /* Amber/Orange */
+.mobile-nav-btn.twin-btn.active { color: #0d9488; } /* Teal */
 .mobile-nav-btn.dash-btn.active { color: #7c3aed; } /* Purple */
 
 /* Mobile FAB for AI Assist */
@@ -736,15 +736,71 @@ html, body, .settings-page, .settings-content, .settings-sidebar,
     height: 56px;
     background: var(--blue);
     color: white;
-    border: none;
-    border-radius: 50%;
-    font-size: 26px;
-    z-index: 100;
-    box-shadow: 0 8px 24px rgba(7, 95, 168, 0.4);
-    cursor: pointer;
+    border-radius: 28px;
+    box-shadow: 0 4px 14px rgba(35, 109, 159, 0.4);
+    z-index: 1000;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    border: none;
+    cursor: pointer;
+    font-size: 24px;
+    transition: transform 0.2s;
+}
+
+/* Voice Prescription Assist Page */
+.voice-page-layout {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 28px;
+}
+
+.voice-btn-row {
+    display: flex;
+    gap: 16px;
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.voice-record-btn {
+    background: var(--blue);
+    border: none;
+    color: white;
+    padding: 12px 28px;
+    border-radius: 30px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+}
+
+.voice-upload-btn {
+    border: 1px dashed #cbd5e1;
+    border-radius: 30px;
+    padding: 12px 28px;
+    cursor: pointer;
+    font-weight: 600;
+    color: #475569;
+    background: white;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+}
+
+/* Prediction KPIs */
+.progression-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+}
+
+.kpi-card {
+    border-radius: 10px;
+    padding: 18px;
+    text-align: center;
 }
 
 .mobile-login-btn {
