@@ -55,32 +55,7 @@ NephroCare integrates ML risk prediction, clinical stage screening, AI-assisted 
 
 ## System Architecture & Data Flow
 
-```mermaid
-graph TD
-    A[ESP32 Wearable Patch] -->|USB Serial / BLE JSON| B[Vite React Frontend]
-    C[Doctor Voice Prescription] -->|WAV Audio Upload| B
-    D[Kidney Ultrasound Scan] -->|Image Upload| B
-    E[Clinical Data Input] -->|Interactive Forms| B
-
-    B -->|HTTP Requests / JSON / FormData| F[Uvicorn Python API Server]
-
-    subgraph Machine Learning & AI Inference Layer
-        F -->|Speech-to-Text| G[OpenAI Whisper base]
-        F -->|Anomalies Prediction| H[5-Class PyTorch CNN Model]
-        F -->|Diagnostics & Report Parsing| I[Gemini Developer API]
-        F -->|Risk Prediction| J[XGBoost Clinical Classifier]
-        F -->|Stage Screening| K[XGBoost Stage G1-G5 Estimator]
-    end
-
-    F -->|Insert / Update Logs| L[(Supabase Cloud PostgreSQL)]
-    F -->|Trigger Notifications| M[Twilio Gateway]
-
-    M -->|Medication & Diet Alerts| N[Patient's WhatsApp App]
-
-    L -->|Stored History / Telemetry Logs| F
-    F -->|JSON Response Payload| B
-    B -->|Dynamic Visualizations| O[Interactive 3D Kidney Twin & Graphs]
-```
+<img width="1335" height="941" alt="architect" src="https://github.com/user-attachments/assets/4d7cf067-d9d3-443d-93ee-60113bb4f363" />
 
 ---
 
