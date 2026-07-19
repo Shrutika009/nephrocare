@@ -722,8 +722,103 @@ export function DashboardPage({
             font-size: 13px !important;
             border-radius: 8px;
           }
+        @media (max-width: 600px) {
+          .symptom-row {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px 0;
+          }
+          .symptom-buttons {
+            width: 100%;
+            justify-content: space-between;
+            gap: 8px;
+          }
+          .symptom-btn {
+            flex: 1;
+            padding: 10px !important;
+            font-size: 13px !important;
+            border-radius: 8px;
+          }
           .btn-short { display: none; }
           .btn-full { display: inline; }
+        }
+
+        /* Dashboard Responsive Grids */
+        .dashboard-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 24px;
+          border-bottom: 1px solid #e2e8f0;
+          padding-bottom: 20px;
+        }
+        .dashboard-main-grid {
+          display: grid;
+          grid-template-columns: 1.8fr 1.2fr;
+          gap: 28px;
+          margin-bottom: 28px;
+        }
+        .dashboard-charts-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 24px;
+        }
+        .dashboard-labs-grid {
+          display: grid;
+          grid-template-columns: 1.05fr 0.95fr;
+          gap: 24px;
+        }
+        .dashboard-twin-mini-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 14px;
+          background: #f8fafc;
+          padding: 14px;
+          border-radius: 10px;
+          border: 1px solid #e2e8f0;
+        }
+        .dashboard-bottom-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+          gap: 24px;
+        }
+
+        @media (max-width: 900px) {
+          .dashboard-main-grid,
+          .dashboard-labs-grid {
+            grid-template-columns: 1fr;
+            gap: 20px;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .dashboard-charts-grid {
+            grid-template-columns: 1fr;
+            gap: 20px;
+          }
+        }
+
+        @media (max-width: 600px) {
+          .dashboard-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 16px;
+          }
+          .dashboard-header button {
+            width: 100%;
+            justify-content: center;
+          }
+          .content-area {
+            padding: 16px !important;
+          }
+          .dashboard-bottom-grid {
+            grid-template-columns: 1fr;
+            gap: 16px;
+          }
+          .dashboard-twin-mini-grid {
+            grid-template-columns: 1fr;
+          }
         }
       `}</style>
 
@@ -731,7 +826,7 @@ export function DashboardPage({
       <div className="content-area">
         
         {/* Header Navigation */}
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid #e2e8f0', paddingBottom: '20px' }}>
+        <header className="dashboard-header">
           <div>
             <span style={{ fontSize: '11.5px', color: '#9F1239', fontWeight: 'bold', textTransform: 'uppercase', background: '#fff5f7', padding: '4px 10px', borderRadius: '12px', letterSpacing: '0.5px' }}>
               Patient Portal
@@ -865,13 +960,13 @@ export function DashboardPage({
         </section>
 
         {/* 2. MAIN SPLIT GRID: LEFT (Risk, Stage, Labs) vs RIGHT (Big Ultrasound Diagnostic Scan Card) */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1.2fr', gap: '28px', marginBottom: '28px' }}>
+        <div className="dashboard-main-grid">
           
           {/* LEFT SUB-COLUMN: Risk, Stage, and Tabbed Labs */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
             
             {/* Risk and Stage Side-by-Side */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+            <div className="dashboard-charts-grid">
               
               {/* Card: AI Clinical Risk Assessment */}
               <div className="card-custom">
@@ -994,7 +1089,7 @@ export function DashboardPage({
             </div>
 
             {/* Split row: Laboratory Values (narrower) & AI Meal Planner */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.05fr 0.95fr', gap: '24px' }}>
+            <div className="dashboard-labs-grid">
               
               {/* Card: Laboratory Values Dashboard */}
               <div className="card-custom">
@@ -1244,7 +1339,7 @@ export function DashboardPage({
                 )}
 
                 {/* Measurements and size indicators */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <div className="dashboard-twin-mini-grid">
                   <div>
                     <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>KIDNEY LENGTH</span>
                     <span style={{ fontSize: '11.5px', color: '#334155', display: 'block', lineHeight: '1.4' }}>
@@ -1300,7 +1395,7 @@ export function DashboardPage({
         </div>
 
         {/* 3. BOTTOM SECTION: RECENT LABS LIST, AI DIET GUIDES, SYMPTOMS, ACTIONS */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
+        <div className="dashboard-bottom-grid">
           
           {/* Card: Recent Laboratory Results */}
           <div className="card-custom" style={{ textAlign: 'left' }}>
