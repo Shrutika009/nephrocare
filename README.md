@@ -2,28 +2,175 @@
 
 **An AI-powered CKD care companion for early detection, personalized nutrition, and continuous monitoring.**
 
-## Problem Statement
+---
 
-Chronic Kidney Disease (CKD) is a silent, progressive condition that often goes undetected until significant kidney damage has occurred. Patients face delayed diagnosis, limited access to nephrologists, difficulty interpreting lab reports, lack of personalized nutrition guidance, and inadequate long-term monitoring - all of which worsen health outcomes and drive up healthcare costs.
+## Why NephroCare is Needed
 
-## Solution
+Chronic Kidney Disease (CKD) is a global public health crisis, affecting over **850 million people worldwide** (more than double the number of people with diabetes, and 20 times the number of people with cancer or HIV/AIDS). 
 
-NephroCare brings CKD risk prediction, stage screening, lab report support, nutrition guidance, and continuous monitoring into one patient-focused platform.
+CKD is a progressive, life-threatening condition often called a **"silent killer"**. Because early stages typically show no physical symptoms, up to **90% of individuals suffering from kidney damage are completely unaware** of their condition until their kidneys are on the brink of failure. By the time symptoms appear, the damage is often irreversible, requiring dialysis or a kidney transplant.
 
-## Core Features
+Managing kidney health is complex, requiring precise tracking of laboratory parameters, blood pressure, daily symptoms, and highly restrictive diets (limiting potassium, sodium, phosphorus, and protein). However, patients face severe barriers:
+* Limited access to specialist nephrologists (especially in remote or underserved areas).
+* Difficulty interpreting complex lab reports.
+* A lack of daily, personalized nutritional guidance.
+* High costs and invasive nature of traditional continuous monitoring.
 
-| Feature | Description |
-|---|---|
-| **CKD Risk Prediction** | Predicts CKD / No CKD from clinical values (creatinine, hemoglobin, potassium, blood pressure, albumin, diabetes, hypertension) |
-| **CKD Stage Screening** | Estimates kidney function stage using eGFR and urine albumin-creatinine ratio |
-| **Food Recommendation** | Suggests kidney-friendly foods based on CKD stage and health conditions |
-| **Food Safety Checker** | Evaluates whether a food item is Safe, Moderate, or Risky for CKD patients based on nutritional content |
-| **AI Meal Planner** | Generates personalized daily meal plans (breakfast, lunch, dinner, snacks) tailored to kidney health needs |
-| **WhatsApp Health Assistant** | Sends reminders for medications, appointments, lab tests, water intake, and dietary adherence |
-| **Monitoring Dashboard** | Tracks eGFR, creatinine, blood pressure, symptoms, and progress over time |
-| **Early Warning Alerts** | Flags worsening kidney function, abnormal lab values, missed checkups, or high-risk symptom patterns |
+**NephroCare** was built to break down these barriers by providing a non-invasive, accessible, and intelligent home-care cockpit.
 
-## Datasets Used
+---
+
+## Solution Overview
+
+NephroCare integrates machine learning risk prediction, clinical stage screening, AI-assisted ultrasound diagnostics, speech-to-text voice prescription parsing, and real-time wearable telemetry into a unified patient-centered ecosystem. It bridges the gap between clinical data and daily self-management for patients with Chronic Kidney Disease (CKD).
+
+### Responsive Mobile-First Design
+* The platform features a **fully responsive mobile cockpit layout**, optimized for smartphones and tablets.
+* When viewed on a phone, the dashboard stacks sections fluidly, adjusts charts and dials, and fits the screen parameters natively (with no horizontal scrolling) to provide an accessible care experience on the go.
+
+---
+
+## System Architecture & Data Flow
+
+```mermaid
+graph TD
+    A[ESP32 Wearable Patch] -->|USB Serial / BLE JSON| B[Vite React Frontend]
+    C[Doctor Voice Prescription] -->|WAV Audio Upload| B
+    D[Kidney Ultrasound Scan] -->|Image Upload| B
+    E[Clinical Data Input] -->|Interactive Forms| B
+    
+    B -->|HTTP Requests / JSON / FormData| F[Uvicorn Python API Server]
+    
+    subgraph Machine Learning & AI Inference Layer
+        F -->|Speech-to-Text| G[OpenAI Whisper base]
+        F -->|Anomalies Prediction| H[5-Class PyTorch CNN Model]
+        F -->|Diagnostics & Report Parsing| I[Gemini Developer API]
+        F -->|Risk Prediction| J[XGBoost Clinical Classifier]
+        F -->|Stage Screening| K[XGBoost Stage G1-G5 Estimator]
+    end
+    
+    F -->|Insert / Update Logs| L[(Supabase Cloud PostgreSQL)]
+    F -->|Trigger Notifications| M[Twilio Gateway]
+    
+    M -->|Medication & Diet Alerts| N[Patient's WhatsApp App]
+    
+    L -->|Stored History / Telemetry Logs| F
+    F -->|JSON Response Payload| B
+    B -->|Dynamic Visualizations| O[Interactive 3D Kidney Twin & Graphs]
+```
+
+---
+
+
+## Core Features & Machine Learning Models Used
+
+| Feature | Description | Models & Technology Stack |
+|---|---|---|
+| **CKD Risk Prediction** | Predicts the probability of CKD based on clinical metrics (creatinine, blood pressure, etc.). | **XGBoost Classifier** (`models/ckd_risk_prediction_model.joblib`) trained on clinical parameters. |
+| **CKD Stage Screening** | Classifies kidney damage stages (G1 to G5) using lab values (eGFR, Urine ACR). | **XGBoost Classifier** (`models/ckd_stage_xgb.joblib`) with custom scaling pipelines. |
+| **AI Ultrasound Diagnostics** | Analyzes kidney ultrasound images to class-predict structural anomalies. | **5-Class Custom PyTorch CNN** (`models/kidney_ultrasound_model.pth`) + **Gemini 2.5 Flash** for observations. |
+| **Digital Kidney Twin** | Renders a 3D kidney avatar that reflects real-time biometric stress states. | **HTML5 Canvas / Three.js 3D rendering** driven by the real-time sensor streams. |
+| **Voice Prescription Analyzer** | Transcribes doctor voice notes and parses them into medication & vital thresholds. | **OpenAI Whisper (base model)** for transcription + **Gemini API** for clinical entity parsing. |
+| **Food Safety & Meal Planner** | Analyzes food safety levels and creates kidney-friendly diet guides. | **Gemini Developer API** + **Indian Foods Dataset** matching engine. |
+| **WhatsApp Health Assistant** | Sends proactive reminders for medications, diet adherence, and checkups. | **Twilio Messaging API** (WhatsApp sandbox gateway). |
+| **Monitoring Dashboard** | Consolidated view showing health logs, lab historical trends, and alerts. | **Vite React SPA** dashboard with live telemetry socket linkages. |
+
+### Feature Flow & User Journey
+
+```mermaid
+graph TD
+    subgraph Feature Flow & User Journey
+        Start[Patient Login / Portal Entry] --> Predict[1. CKD Risk Prediction]
+        Predict -->|XGBoost Risk Score| Screen[2. Clinical Stage Screening]
+        Screen -->|Calculated GFR & Stage G1-G5| Diet[3. Personalized Diet & Meal Planner]
+        
+        Start --> Wear[4. Wearable Twin Telemetry]
+        Wear -->|Real-Time Biometrics| Stress[5. AI Kidney Stress Index]
+        Stress -->|Exceeds Threshold| Whatsapp[6. WhatsApp Emergency Alert]
+        
+        Start --> Voice[7. Voice Prescription Upload]
+        Voice -->|Whisper & Gemini Parsing| Alerts[8. Automatic Medication Alerts]
+        Alerts --> Whatsapp
+        
+        Start --> US[9. AI Ultrasound Scan Hub]
+        US -->|CNN Classification & Gemini Report| Summary[10. Aggregated Doctor Summary Report]
+    end
+```
+
+---
+
+## Database Schema & Datasets Used
+
+### Database Entity-Relationship (ER) Diagram
+This diagram shows the PostgreSQL table relations for user authentication, clinical profiles, symptom tracking, predictions, ultrasound logs, and food checks:
+
+```mermaid
+erDiagram
+    nephrocare_users ||--o{ nephrocare_sessions : "has active"
+    nephrocare_users ||--|| nephrocare_user_profiles : "possesses clinical"
+    nephrocare_users ||--o{ nephrocare_predictions : "generates risk"
+    nephrocare_users ||--o{ nephrocare_ultrasound_scans : "logs ultrasound"
+    nephrocare_users ||--o{ nephrocare_symptom_logs : "records symptom"
+    nephrocare_users ||--o{ nephrocare_food_checks : "submits food safety"
+
+    nephrocare_users {
+        varchar id PK "Hex User ID"
+        varchar name "Profile Display Name"
+        varchar email "Unique Registered Email"
+        varchar password_hash "SHA-256 Hash"
+        timestamp created_at "Registration Time"
+        varchar oauth_provider "OAuth Provider (Google/Null)"
+    }
+
+    nephrocare_sessions {
+        varchar token PK "Hex Session Token"
+        varchar user_id FK "References users.id"
+        varchar email "User Email"
+        timestamp created_at "Login Time"
+    }
+
+    nephrocare_user_profiles {
+        varchar user_id PK, FK "References users.id"
+        varchar phone "Patient Phone Number"
+        varchar dob "Date of Birth"
+        varchar gender "Gender Info"
+        varchar ckd_stage "Stage (G1-G5)"
+        varchar nephrologist "Doctor Name"
+        varchar blood_type "Blood Group"
+        varchar emergency_contact "Emergency Phone"
+    }
+
+    nephrocare_predictions {
+        serial id PK "Prediction Entry ID"
+        varchar user_id FK "References users.id"
+        timestamp timestamp "Calculation Time"
+        jsonb data "Input metrics & calculated risk"
+    }
+
+    nephrocare_ultrasound_scans {
+        serial id PK "Scan Entry ID"
+        varchar user_id FK "References users.id"
+        timestamp timestamp "Scan Logging Time"
+        jsonb data "Image base64 & ML observations"
+    }
+
+    nephrocare_symptom_logs {
+        serial id PK "Symptom Log Entry ID"
+        varchar user_id FK "References users.id"
+        timestamp timestamp "Logging Time"
+        jsonb data "Symptom severity map"
+    }
+
+    nephrocare_food_checks {
+        serial id PK "Food Check Entry ID"
+        varchar user_id FK "References users.id"
+        timestamp timestamp "Check Time"
+        jsonb data "Analyzed food item & safety status"
+    }
+```
+
+### Processed Datasets
+
 
 ### 1. UCI Chronic Kidney Disease Dataset
 - **Source:** UCI Machine Learning Repository
@@ -47,56 +194,109 @@ NephroCare brings CKD risk prediction, stage screening, lab report support, nutr
 - **Use:** Food safety checks, food recommendations, and meal planning
 - Includes Indian food names/categories with protein, energy, potassium, phosphorus, and sodium content, plus CKD safety labels.
 
-## Getting Started
+---
 
-### Prerequisites
-- Python 3.x
-- pip / venv
+## Wearable Patch Integration (Hardware)
 
-### Run Dataset Extraction
+NephroCare incorporates a physical wearable patch to track biometrics in real-time. It streams telemetry directly into the monitoring cockpit to feed the AI Kidney Stress Index.
 
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python scripts/extract_datasets.py
+### Wearable Telemetry & Alert Sequence
+This diagram shows the step-by-step telemetry transmission and the real-time threshold check flow:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant ESP as ESP32 Wearable Patch
+    participant FE as React Frontend (Three.js Twin)
+    participant BE as Uvicorn Python API Server
+    participant DB as Supabase Cloud PostgreSQL DB
+
+    Note over ESP: Reads PPG & Temp sensors
+    ESP->>FE: Stream JSON via Web Serial / Bluetooth SPP
+    Note over FE: Render biometrics in real-time
+    FE->>FE: Update 3D Kidney Twin color (Heatmap)
+    FE->>BE: POST telemetry to /api/wearable/telemetry
+    BE->>BE: Calculate AI Kidney Stress Index
+    BE->>DB: Log telemetry payload into database
+    DB-->>BE: Acknowledge save
+    BE-->>FE: Return Kidney Stress Index & Alert Status
+    alt Stress Index exceeds threshold
+        FE->>BE: Request WhatsApp Emergency Alert
+        BE->>BE: Trigger Twilio Gateway
+        BE-->>FE: Alert Sent Confirmation
+    end
 ```
 
-This will populate `data/processed/` with the cleaned CSVs used by the prediction and recommendation models.
 
-### Running the Application
+### Hardware Components:
+* **ESP32 DevKit V1**: Low-power microcontroller with onboard Bluetooth and USB Serial.
+* **MAX30102 PPG Sensor**: Tracks heart rate (HR), heart rate variability (HRV), and blood oxygen levels (SpO2).
+* **DS18B20 Temp Probe**: Waterproof digital thermistor tracking skin temperature.
 
-To launch both the Python API backend and the React frontend simultaneously, run the unified startup script:
+### Telemetry Output Format:
+```json
+{
+  "temperature": 30.5,
+  "heartRate": 72,
+  "spo2": 98,
+  "fingerDetected": true,
+  "ir": 61200
+}
+```
 
+* **Connecting the Patch**: Connect the ESP32 via Micro-USB or pair it over Bluetooth under the name **`NephroCarePatch`** (using Classic Bluetooth Serial SPP).
+* For details, refer to **[docs/wearable.md](file:///home/vimla/Documents/nephrocare/docs/wearable.md)**.
+
+---
+
+## Running the Application Locally
+
+### Prerequisites
+* Python 3.10+
+* Node.js 18+
+* Supabase Cloud Database (or local PostgreSQL instance, configured in `.env`)
+
+### Step 1: Environment Setup
+Copy the template `.env.example` to a new `.env` file and fill in your API keys (Gemini, Google OAuth, Twilio, database connection string):
+```bash
+cp .env.example .env
+```
+
+### Step 2: Install Python Dependencies & Extract Datasets
+Create a virtual environment, install dependencies, and run the dataset setup:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+python scripts/extract_datasets.py
+```
+
+### Step 3: Run the Application (Unified Startup Script)
+You can boot both the Python API backend and the Vite React frontend concurrently:
 ```bash
 bash scripts/run_nephrocare_demo.sh
 ```
 
-This script starts:
-- The **Python API Server** at `http://127.0.0.1:8000`
-- The **Vite Frontend Dev Server** at `http://localhost:5175/`
+Once running:
+* **Frontend Portal**: Open [http://localhost:5175/](http://localhost:5175/) in your browser.
+* **Backend Uvicorn API**: Active at [http://localhost:8000/](http://localhost:8000/).
 
-#### Running Backend & Frontend Separately
+#### Alternative: Running Separately
+If you want to run the servers in separate terminals:
+* **Start Backend**: `.venv/bin/python api/nephrocare_api.py`
+* **Start Frontend**: `cd frontend && npm install && npm run dev`
 
-If you want to run the components individually:
+---
 
-**1. Start the API Backend:**
-```bash
-# From the project root directory
-.venv/bin/python api/nephrocare_api.py
-```
+## Target Users
 
-**2. Start the Frontend:**
-```bash
-# Navigate to the frontend folder
-cd frontend
+1. **High-Risk Individuals**: People with diabetes, hypertension, obesity, or a family history of renal disease who want to screen early and predict their risk index before damage escalates.
+2. **Diagnosed CKD Patients (Stages 1–5)**: Patients who need daily support managing their diet, logging their biometric telemetry, and tracking lab value trends over time.
+3. **Caregivers & Family Members**: Relatives who want to receive automated early warning alerts (via WhatsApp) and monitor the patient's status remotely.
+4. **Clinicians & Remote Health Assistants**: Providers looking for an aggregated diagnostic overview and a structured doctor summary report to make clinical consultations more efficient.
 
-# Install dependencies (first time only)
-npm install
+---
 
-# Start the Vite dev server
-npm run dev
-```
+## Disclaimer
 
-##Disclaimer
-
-NHANES stage labels are **screening labels, not confirmed medical diagnoses**. CKD diagnosis requires clinical confirmation and persistence over time. NephroCare is intended to support - not replace - professional medical advice.
+All outputs, screenings, and alerts generated by the models and biosensors are intended for **educational tracking and proxy awareness only** - they are **not confirmed medical diagnoses**. NephroCare is designed to support and facilitate patient-doctor communication, not to replace professional medical treatment.
