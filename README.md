@@ -56,13 +56,6 @@ NephroCare integrates ML risk prediction, clinical stage screening, AI-assisted 
 ## System Architecture & Data Flow
 
 ```mermaid
-%%{init: {'theme':'base', 'themeVariables': {
-  'primaryColor': '#e0edff',
-  'primaryTextColor': '#1e3a8a',
-  'primaryBorderColor': '#5b8def',
-  'lineColor': '#94a3b8',
-  'fontSize': '14px'
-}}}%%
 graph TD
     A[ESP32 Wearable Patch] -->|USB Serial / BLE JSON| B[Vite React Frontend]
     C[Doctor Voice Prescription] -->|WAV Audio Upload| B
@@ -71,43 +64,23 @@ graph TD
 
     B -->|HTTP Requests / JSON / FormData| F[Uvicorn Python API Server]
 
-    subgraph ML["Machine Learning & AI Inference Layer"]
-        G[OpenAI Whisper base]
-        H[5-Class PyTorch CNN Model]
-        I[Gemini Developer API]
-        J[XGBoost Clinical Classifier]
-        K[XGBoost Stage G1-G5 Estimator]
+    subgraph Machine Learning & AI Inference Layer
+        F -->|Speech-to-Text| G[OpenAI Whisper base]
+        F -->|Anomalies Prediction| H[5-Class PyTorch CNN Model]
+        F -->|Diagnostics & Report Parsing| I[Gemini Developer API]
+        F -->|Risk Prediction| J[XGBoost Clinical Classifier]
+        F -->|Stage Screening| K[XGBoost Stage G1-G5 Estimator]
     end
-
-    F -->|Speech-to-Text| G
-    F -->|Anomalies Prediction| H
-    F -->|Diagnostics & Report Parsing| I
-    F -->|Risk Prediction| J
-    F -->|Stage Screening| K
 
     F -->|Insert / Update Logs| L[(Supabase Cloud PostgreSQL)]
     F -->|Trigger Notifications| M[Twilio Gateway]
+
     M -->|Medication & Diet Alerts| N[Patient's WhatsApp App]
 
     L -->|Stored History / Telemetry Logs| F
     F -->|JSON Response Payload| B
     B -->|Dynamic Visualizations| O[Interactive 3D Kidney Twin & Graphs]
-
-    classDef input fill:#fef3c7,stroke:#d97706,color:#78350f
-    classDef frontend fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
-    classDef backend fill:#dcfce7,stroke:#16a34a,color:#14532d
-    classDef ml fill:#ede9fe,stroke:#7c3aed,color:#4c1d95
-    classDef storage fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
-    classDef output fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
-
-    class A,C,D,E input
-    class B,O frontend
-    class F backend
-    class G,H,I,J,K ml
-    class L,M,N storage
 ```
-
-> Diagram key: 🟡 input sources · 🔵 frontend · 🟢 API server · 🟣 ML/AI layer · 🔴 storage & alerts
 
 ---
 
@@ -126,54 +99,24 @@ graph TD
 
 ### Feature Flow & User Journey
 
-Split into three journeys for readability — each starts from patient login.
-
-**1. Risk Prediction → Diet Planning**
-
 ```mermaid
-%%{init: {'theme':'base', 'themeVariables': {
-  'primaryColor': '#dcfce7',
-  'primaryTextColor': '#14532d',
-  'primaryBorderColor': '#16a34a',
-  'lineColor': '#94a3b8'
-}}}%%
-graph LR
-    Start[Patient Login / Portal Entry] --> Predict[1. CKD Risk Prediction]
-    Predict -->|XGBoost Risk Score| Screen[2. Clinical Stage Screening]
-    Screen -->|Calculated GFR & Stage G1-G5| Diet[3. Personalized Diet & Meal Planner]
-```
+graph TD
+    subgraph Feature Flow & User Journey
+        Start[Patient Login / Portal Entry] --> Predict[1. CKD Risk Prediction]
+        Predict -->|XGBoost Risk Score| Screen[2. Clinical Stage Screening]
+        Screen -->|Calculated GFR & Stage G1-G5| Diet[3. Personalized Diet & Meal Planner]
 
-**2. Wearable Telemetry → Emergency Alerts**
+        Start --> Wear[4. Wearable Twin Telemetry]
+        Wear -->|Real-Time Biometrics| Stress[5. AI Kidney Stress Index]
+        Stress -->|Exceeds Threshold| Whatsapp[6. WhatsApp Emergency Alert]
 
-```mermaid
-%%{init: {'theme':'base', 'themeVariables': {
-  'primaryColor': '#fee2e2',
-  'primaryTextColor': '#7f1d1d',
-  'primaryBorderColor': '#dc2626',
-  'lineColor': '#94a3b8'
-}}}%%
-graph LR
-    Start[Patient Login / Portal Entry] --> Wear[4. Wearable Twin Telemetry]
-    Wear -->|Real-Time Biometrics| Stress[5. AI Kidney Stress Index]
-    Stress -->|Exceeds Threshold| Whatsapp[6. WhatsApp Emergency Alert]
-```
+        Start --> Voice[7. Voice Prescription Upload]
+        Voice -->|Whisper & Gemini Parsing| Alerts[8. Automatic Medication Alerts]
+        Alerts --> Whatsapp
 
-**3. Voice Prescriptions & Ultrasound → Doctor Summary**
-
-```mermaid
-%%{init: {'theme':'base', 'themeVariables': {
-  'primaryColor': '#ede9fe',
-  'primaryTextColor': '#4c1d95',
-  'primaryBorderColor': '#7c3aed',
-  'lineColor': '#94a3b8'
-}}}%%
-graph LR
-    Start[Patient Login / Portal Entry] --> Voice[7. Voice Prescription Upload]
-    Voice -->|Whisper & Gemini Parsing| Alerts[8. Automatic Medication Alerts]
-    Alerts --> Whatsapp[6. WhatsApp Emergency Alert]
-
-    Start --> US[9. AI Ultrasound Scan Hub]
-    US -->|CNN Classification & Gemini Report| Summary[10. Aggregated Doctor Summary Report]
+        Start --> US[9. AI Ultrasound Scan Hub]
+        US -->|CNN Classification & Gemini Report| Summary[10. Aggregated Doctor Summary Report]
+    end
 ```
 
 ---
@@ -182,20 +125,16 @@ graph LR
 
 ### Entity-Relationship Diagram
 
-PostgreSQL table relations for authentication, clinical profiles, symptom tracking, predictions, ultrasound logs, and food checks. Split into two diagrams — identity/auth tables, and clinical/log tables — both keyed off `nephrocare_users`.
-
-**Identity & Auth**
+PostgreSQL table relations for authentication, clinical profiles, symptom tracking, predictions, ultrasound logs, and food checks:
 
 ```mermaid
-%%{init: {'theme':'base', 'themeVariables': {
-  'primaryColor': '#dbeafe',
-  'primaryTextColor': '#1e3a8a',
-  'primaryBorderColor': '#2563eb',
-  'lineColor': '#94a3b8'
-}}}%%
 erDiagram
     nephrocare_users ||--o{ nephrocare_sessions : "has active"
     nephrocare_users ||--|| nephrocare_user_profiles : "possesses clinical"
+    nephrocare_users ||--o{ nephrocare_predictions : "generates risk"
+    nephrocare_users ||--o{ nephrocare_ultrasound_scans : "logs ultrasound"
+    nephrocare_users ||--o{ nephrocare_symptom_logs : "records symptom"
+    nephrocare_users ||--o{ nephrocare_food_checks : "submits food safety"
 
     nephrocare_users {
         varchar id PK "Hex User ID"
@@ -223,22 +162,6 @@ erDiagram
         varchar blood_type "Blood Group"
         varchar emergency_contact "Emergency Phone"
     }
-```
-
-**Clinical Logs & Predictions**
-
-```mermaid
-%%{init: {'theme':'base', 'themeVariables': {
-  'primaryColor': '#ede9fe',
-  'primaryTextColor': '#4c1d95',
-  'primaryBorderColor': '#7c3aed',
-  'lineColor': '#94a3b8'
-}}}%%
-erDiagram
-    nephrocare_users ||--o{ nephrocare_predictions : "generates risk"
-    nephrocare_users ||--o{ nephrocare_ultrasound_scans : "logs ultrasound"
-    nephrocare_users ||--o{ nephrocare_symptom_logs : "records symptom"
-    nephrocare_users ||--o{ nephrocare_food_checks : "submits food safety"
 
     nephrocare_predictions {
         serial id PK "Prediction Entry ID"
@@ -293,17 +216,6 @@ NephroCare includes a physical wearable patch for real-time biometrics, streamed
 ### Telemetry & Alert Sequence
 
 ```mermaid
-%%{init: {'theme':'base', 'themeVariables': {
-  'primaryColor': '#fef3c7',
-  'primaryTextColor': '#78350f',
-  'primaryBorderColor': '#d97706',
-  'lineColor': '#94a3b8',
-  'actorBkg': '#e0edff',
-  'actorBorder': '#5b8def',
-  'actorTextColor': '#1e3a8a',
-  'signalColor': '#64748b',
-  'signalTextColor': '#334155'
-}}}%%
 sequenceDiagram
     autonumber
     participant ESP as ESP32 Wearable Patch
