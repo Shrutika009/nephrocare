@@ -21,65 +21,75 @@ Rather than claiming lab-equivalent biomarker quantification, the hardware is sc
 │                 ESP32 DevKit V1                             │
 │       (Sampling, serialization, JSON packaging)             │
 └────────────────────────┬───────────────────────────────────┘
-                         │ USB Serial (Stream) / BLE
-                         ▼
-                 ┌───────────────┐
-                 │  Mobile / Web │
-                 │  Client App   │
-                 └───────┬───────┘
-                         │ Local HTTP API
-                         ▼
-             ┌───────────────────────┐
-             │   Python API Server   │
-             │   (AI Risk Engine)    │
-             └───────────────────────┘
+                         │
+                         ├─► USB Serial (Micro-USB Cable)
+                         └─► Bluetooth Serial (Classic SPP)
+                                 │
+                                 ▼
+                         ┌───────────────┐
+                         │  Mobile / Web │
+                         │  Client App   │
+                         └───────┬───────┘
+                                 │ Local HTTP API
+                                 ▼
+                     ┌───────────────────────┐
+                     │   Python API Server   │
+                     │   (AI Risk Engine)    │
+                     └───────────────────────┘
 ```
 
-This mirrors the end-to-end framework: wearable physiological sensing → data transmission (USB Serial / BLE) → local API server & AI analytics → patient dashboard visualization.
-
 ---
 
-## 3. Sensor Modules and Proxies
+## 3. Sensor Modules and Connection Map
 
-| Module | Part | Signal | What it really tells you |
+| Sensor | ESP32 GPIO | Bus Type | ESP32 Connection Details |
 |---|---|---|---|
-| PPG Sensor | MAX30102 | Optical pulse waveform | Heart Rate (HR), HRV (Heart Rate Variability), and Blood Oxygen Saturation (SpO2) — sympathetic stress/hypoxia proxies |
-| Skin Temperature | DS18B20 | Thermistor probe | Local skin temperature trends — vasodilation / stress proxy |
+| **MAX30102 SDA** | GPIO 21 | I2C Data | Connect to SDA pin on I2C sensor board. |
+| **MAX30102 SCL** | GPIO 22 | I2C Clock | Connect to SCL pin on I2C sensor board. |
+| **MAX30102 VCC** | 3.3V | Power | Power supply for optical sensor. |
+| **MAX30102 GND** | GND | Ground | Common reference ground. |
+| | | | |
+| **DS18B20 DATA** | GPIO 4 | 1-Wire | Connect to Yellow DATA wire. **Requires 4.7kΩ pull-up resistor to VCC**. |
+| **DS18B20 VCC** | 3.3V / 5V | Power | Connect to Red VCC wire. |
+| **DS18B20 GND** | GND | Ground | Connect to Black GND wire. |
+
+### Wiring Schematic Notes:
+1. **MAX30102 I2C**: Connect directly to standard ESP32 I2C pins (GPIO 21 & GPIO 22). No external pull-ups are usually required if your breakout board contains them.
+2. **DS18B20 1-Wire**: Connect a **4.7kΩ resistor** between the **DATA line (GPIO 4)** and the **VCC line (3.3V)**. Without this pull-up resistor, the temperature readings will default to `-127 °C` or fail to initialize.
 
 ---
 
-## 4. ESP32 Pin Map
+## 4. Bluetooth Connection Steps
 
-| Sensor Pin | ESP32 GPIO | Bus | Function / Role |
-|---|---|---|---|
-| MAX30102 SDA | GPIO 21 | I2C | Optical PPG Data Line |
-| MAX30102 SCL | GPIO 22 | I2C | Optical PPG Clock Line |
-| DS18B20 DATA | GPIO 4 | 1-Wire (+4.7kΩ pull-up) | Temperature Data Line |
-| Battery (Li-Po 3.7V) | VIN / 5V | Power | Input power supply |
-| Common ground | GND | — | Common reference ground |
+The ESP32 broadcasts a **Classic Bluetooth Serial Port Profile (SPP)** connection.
 
----
-
-## 5. Data Acquisition & Transmission Pipeline
-
-1. **Sample**: The ESP32 polls the DS18B20 temperature sensor and MAX30102 PPG sensor. It runs the SpO2 algorithm using 100-sample raw IR/Red light buffers.
-2. **Condition**: Gated by a finger-detection threshold (IR light reading > 50,000) to ensure data is only recorded when worn.
-3. **Package**: Sensor values are bundled into a clean JSON payload:
-   ```json
-   {
-     "temperature": 30.5,
-     "heartRate": 72,
-     "spo2": 98,
-     "fingerDetected": true,
-     "ir": 61200
-   }
-   ```
-4. **Transmit**: Outputted over USB Serial at 115200 baud and broadcasted via BLE notify.
-5. **Ingest**: The local frontend/backend reads the telemetry stream to feed the AI Kidney Stress Index.
+1. **Upload firmware** (code below) to your ESP32.
+2. **Pair with your PC**:
+   - Go to your computer's Bluetooth settings and select **Add Device**.
+   - Search for and pair with the device named **`NephroCarePatch`**.
+3. **Establish Connection**:
+   - Once paired, your operating system assigns a virtual **COM Port** (Windows) or `/dev/rfcomm` (Linux/macOS) to the Bluetooth serial connection.
+   - In the NephroCare app, click **"Connect patch"** and select either the direct USB COM port or the virtual Bluetooth COM port to start streaming telemetry data in real-time.
 
 ---
 
-## 6. AI Risk Engine & Kidney Stress Index
+## 5. Telemetry Data Format
+
+The sensor values are packaged into a serialized JSON string and printed once per second to both USB Serial and Bluetooth Serial:
+
+```json
+{
+  "temperature": 30.5,
+  "heartRate": 72,
+  "spo2": 98,
+  "fingerDetected": true,
+  "ir": 61200
+}
+```
+
+---
+
+## 6. AI Risk Engine & Stress Index
 
 The backend risk engine uses the real-time biometric stream to calculate the **Kidney Stress Index (0–100%)**:
 
@@ -90,19 +100,162 @@ The backend risk engine uses the real-time biometric stream to calculate the **K
 
 ---
 
-## 7. Known Hardware Limitations
+## 7. Bill of Materials (BOM)
 
-* **Motion Artifacts**: PPG readings degrade with movement; mitigated by prompt finger-detection gating.
-* **Thermal vasodilation**: Ambient room temperature changes affect skin temperature readings; mitigated by calculating relative baseline deviation instead of absolute values.
+| Component | Quantity | Role |
+|---|---|---|
+| **ESP32 DevKit V1** | 1 | Main MCU with built-in Bluetooth |
+| **MAX30102 Breakout** | 1 | Heart Rate & SpO2 PPG sensor |
+| **DS18B20 Probe** | 1 | Waterproof skin temperature sensor |
+| **4.7kΩ Resistor** | 1 | Pull-up resistor for Dallas 1-Wire protocol |
+| **Breadboard / Wires** | — | Pin-to-pin connections |
+| **Micro-USB Cable** | 1 | USB power and backup serial link |
 
 ---
 
-## 8. Bill of Materials (BOM)
+## 8. ESP32 Arduino Firmware Code
 
-| Component | Role | Required for MVP? |
-|---|---|---|
-| ESP32 DevKit V1 | Main MCU + Bluetooth + Serial | Yes |
-| MAX30102 | PPG/HR/SpO2 | Yes |
-| DS18B20 | Skin Temperature | Yes |
-| 4.7kΩ resistor | Pull-up for DS18B20 1-Wire bus | Yes |
-| Micro-USB Cable | Power & Serial data stream | Yes |
+This is the exact code uploaded to the ESP32 patch. It is also saved in the project directory as [nephrocare_wearable.ino](file:///home/vimla/Documents/nephrocare/hardware/nephrocare_wearable.ino):
+
+```cpp
+#include <Wire.h>
+#include "MAX30105.h"
+#include "spo2_algorithm.h"
+
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
+#include "BluetoothSerial.h"
+
+// Bluetooth
+BluetoothSerial SerialBT;
+
+// DS18B20
+#define ONE_WIRE_BUS 4
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature tempSensor(&oneWire);
+
+// MAX30102
+MAX30105 particleSensor;
+
+// Buffers
+uint32_t irBuffer[100];
+uint32_t redBuffer[100];
+
+int32_t spo2;
+int8_t validSPO2;
+
+int32_t heartRate;
+int8_t validHeartRate;
+
+// Last good values
+int lastHR = 0;
+int lastSpO2 = 0;
+
+void setup()
+{
+  Serial.begin(115200);
+
+  // Bluetooth Device Name
+  SerialBT.begin("NephroCarePatch");
+
+  tempSensor.begin();
+
+  Wire.begin(21, 22);
+
+  if (!particleSensor.begin(Wire, I2C_SPEED_FAST))
+  {
+    Serial.println("{\"error\":\"MAX30102 not found\"}");
+    while (1);
+  }
+
+  particleSensor.setup(
+    20,    // LED brightness
+    4,     // sample average
+    2,     // Red + IR
+    100,   // sample rate
+    411,   // pulse width
+    4096   // ADC range
+  );
+
+  Serial.println("System Started");
+  SerialBT.println("System Started");
+}
+
+void loop()
+{
+  // Collect 100 samples
+  for (int i = 0; i < 100; i++)
+  {
+    while (!particleSensor.available())
+      particleSensor.check();
+
+    redBuffer[i] = particleSensor.getRed();
+    irBuffer[i] = particleSensor.getIR();
+
+    particleSensor.nextSample();
+  }
+
+  long currentIR = irBuffer[99];
+
+  // Read Temperature
+  tempSensor.requestTemperatures();
+  float tempC = tempSensor.getTempCByIndex(0);
+
+  bool fingerDetected = currentIR > 50000;
+
+  if (fingerDetected)
+  {
+    maxim_heart_rate_and_oxygen_saturation(
+      irBuffer,
+      100,
+      redBuffer,
+      &spo2,
+      &validSPO2,
+      &heartRate,
+      &validHeartRate
+    );
+
+    // Store only valid values
+    if (validHeartRate && heartRate >= 40 && heartRate <= 180)
+      lastHR = heartRate;
+
+    if (validSPO2 && spo2 >= 80 && spo2 <= 100)
+      lastSpO2 = spo2;
+  }
+
+  // Create JSON
+  String json = "{";
+
+  json += "\"temperature\":";
+  json += String(tempC, 1);
+
+  json += ",\"heartRate\":";
+  if (lastHR > 0)
+    json += String(lastHR);
+  else
+    json += "null";
+
+  json += ",\"spo2\":";
+  if (lastSpO2 > 0)
+    json += String(lastSpO2);
+  else
+    json += "null";
+
+  json += ",\"fingerDetected\":";
+  json += (fingerDetected ? "true" : "false");
+
+  json += ",\"ir\":";
+  json += String(currentIR);
+
+  json += "}";
+
+  // USB Serial Output
+  Serial.println(json);
+
+  // Bluetooth Output
+  SerialBT.println(json);
+
+  delay(1000);
+}
+```

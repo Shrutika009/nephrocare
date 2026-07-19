@@ -5,19 +5,10 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-#include <BLEDevice.h>
-#include <BLEServer.h>
-#include <BLEUtils.h>
-#include <BLE2902.h>
+#include "BluetoothSerial.h"
 
-// BLE UUIDs
-#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
-
-BLEServer* pServer = NULL;
-BLECharacteristic* pCharacteristic = NULL;
-bool deviceConnected = false;
-bool oldDeviceConnected = false;
+// Bluetooth
+BluetoothSerial SerialBT;
 
 // DS18B20
 #define ONE_WIRE_BUS 4
@@ -41,19 +32,12 @@ int8_t validHeartRate;
 int lastHR = 0;
 int lastSpO2 = 0;
 
-class MyServerCallbacks: public BLEServerCallbacks {
-    void onConnect(BLEServer* pServer) {
-      deviceConnected = true;
-    };
-
-    void onDisconnect(BLEServer* pServer) {
-      deviceConnected = false;
-    }
-};
-
 void setup()
 {
   Serial.begin(115200);
+
+  // Bluetooth Device Name
+  SerialBT.begin("NephroCarePatch");
 
   tempSensor.begin();
 
@@ -74,62 +58,13 @@ void setup()
     4096   // ADC range
   );
 
-  // Initialize BLE
-  BLEDevice::init("NephroCare Wearable");
-  pServer = BLEDevice::createServer();
-  pServer->setCallbacks(new MyServerCallbacks());
-
-  BLEService *pService = pServer->createService(SERVICE_UUID);
-
-  pCharacteristic = pService->createCharacteristic(
-                      CHARACTERISTIC_UUID,
-                      BLECharacteristic::PROPERTY_READ |
-                      BLECharacteristic::PROPERTY_NOTIFY
-                    );
-
-  pCharacteristic->addDescriptor(new BLE2902());
-
-  pService->start();
-
-  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-  pAdvertising->addServiceUUID(SERVICE_UUID);
-  pAdvertising->setScanResponse(true);
-  pAdvertising->setMinPreferred(0x06);  // helps with iOS connection issues
-  pAdvertising->setMinPreferred(0x12);
-  BLEDevice::startAdvertising();
-  Serial.println("BLE Advertising started!");
-}
-
-void sendBLEMessage(String msg) {
-  if (!deviceConnected) return;
-  int len = msg.length();
-  int chunk_size = 20;
-  for (int i = 0; i < len; i += chunk_size) {
-    int endIdx = i + chunk_size;
-    if (endIdx > len) endIdx = len;
-    String chunk = msg.substring(i, endIdx);
-    pCharacteristic->setValue(chunk.c_str());
-    pCharacteristic->notify();
-    delay(20); // Small delay to prevent buffer overflow in BLE stack
-  }
+  Serial.println("System Started");
+  SerialBT.println("System Started");
 }
 
 void loop()
 {
-  // Connection handling
-  if (!deviceConnected && oldDeviceConnected) {
-      delay(500); // give the bluetooth stack the chance to get ready
-      pServer->startAdvertising(); // restart advertising
-      Serial.println("Restart advertising...");
-      oldDeviceConnected = deviceConnected;
-  }
-  if (deviceConnected && !oldDeviceConnected) {
-      // do stuff on connection
-      oldDeviceConnected = deviceConnected;
-      Serial.println("Device connected!");
-  }
-
-  // Collect samples
+  // Collect 100 samples
   for (int i = 0; i < 100; i++)
   {
     while (!particleSensor.available())
@@ -143,7 +78,7 @@ void loop()
 
   long currentIR = irBuffer[99];
 
-  // Temperature
+  // Read Temperature
   tempSensor.requestTemperatures();
   float tempC = tempSensor.getTempCByIndex(0);
 
@@ -161,7 +96,7 @@ void loop()
       &validHeartRate
     );
 
-    // Accept only realistic values
+    // Store only valid values
     if (validHeartRate && heartRate >= 40 && heartRate <= 180)
       lastHR = heartRate;
 
@@ -169,30 +104,37 @@ void loop()
       lastSpO2 = spo2;
   }
 
-  // Create JSON string
-  String jsonStr = "{";
-  jsonStr += "\"temperature\":" + String(tempC, 1);
-  jsonStr += ",\"heartRate\":";
+  // Create JSON
+  String json = "{";
+
+  json += "\"temperature\":";
+  json += String(tempC, 1);
+
+  json += ",\"heartRate\":";
   if (lastHR > 0)
-    jsonStr += String(lastHR);
+    json += String(lastHR);
   else
-    jsonStr += "null";
-  jsonStr += ",\"spo2\":";
+    json += "null";
+
+  json += ",\"spo2\":";
   if (lastSpO2 > 0)
-    jsonStr += String(lastSpO2);
+    json += String(lastSpO2);
   else
-    jsonStr += "null";
-  jsonStr += ",\"fingerDetected\":" + String(fingerDetected ? "true" : "false");
-  jsonStr += ",\"ir\":" + String(currentIR);
-  jsonStr += "}";
+    json += "null";
 
-  // JSON output for Serial
-  Serial.println(jsonStr);
+  json += ",\"fingerDetected\":";
+  json += (fingerDetected ? "true" : "false");
 
-  // Send via BLE if connected (appends a newline so client can buffer and split chunks)
-  if (deviceConnected) {
-    sendBLEMessage(jsonStr + "\n");
-  }
+  json += ",\"ir\":";
+  json += String(currentIR);
+
+  json += "}";
+
+  // USB Serial Output
+  Serial.println(json);
+
+  // Bluetooth Output
+  SerialBT.println(json);
 
   delay(1000);
 }
