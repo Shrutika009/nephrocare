@@ -3,6 +3,7 @@ from PIL import Image
 from rapidfuzz import process
 from dotenv import load_dotenv
 import pandas as pd
+from pathlib import Path
 import os
 
 # Load API key
@@ -21,9 +22,8 @@ client = genai.Client(
 print("Gemini client initialized successfully")
 
 # Load CKD food dataset
-food_df = pd.read_csv(
-    r"C:\Users\DELL\nephrocare\data\processed\ifct2017_ckd_foods.csv"
-)
+ROOT = Path(__file__).resolve().parent.parent if "scripts" in __file__ else Path(__file__).resolve().parent
+food_df = pd.read_csv(ROOT / "data" / "processed" / "ifct2017_ckd_foods.csv")
 
 print(f"Loaded {len(food_df)} foods")
 
