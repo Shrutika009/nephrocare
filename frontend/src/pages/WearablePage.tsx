@@ -410,7 +410,7 @@ export function WearablePage() {
   // Connect to ESP32 Wearable BLE
   const connectBluetooth = async () => {
     if (!isBluetoothSupported) {
-      setError('Web Bluetooth is not supported in this browser or context. Please make sure you are using Google Chrome, Microsoft Edge, or Opera, and accessing the app via a secure origin (http://localhost:5175 or HTTPS).')
+      setError("Web Bluetooth is disabled or unsupported in this browser/OS. On Linux Google Chrome, you must enable the experimental flag: 1. Open a new tab and go to 'chrome://flags/#enable-web-bluetooth'. 2. Change the setting to 'Enabled'. 3. Relaunch Chrome. Also, make sure Bluetooth is turned on in your Linux system settings.")
       setBluetoothStatus('error')
       return
     }
@@ -422,7 +422,12 @@ export function WearablePage() {
     try {
       // 1. Request BLE device filtering by our custom service UUID
       const device = await (navigator as any).bluetooth.requestDevice({
-        filters: [{ services: ['4fafc201-1fb5-459e-8fcc-c5c9c331914b'] }]
+        filters: [
+          { name: 'NephroCare Wearable' },
+          { name: 'NephroCarePatch' },
+          { namePrefix: 'Nephro' }
+        ],
+        optionalServices: ['4fafc201-1fb5-459e-8fcc-c5c9c331914b']
       })
 
       setBleDevice(device)
@@ -877,7 +882,7 @@ export function WearablePage() {
                       transition: 'background 0.2s'
                     }}
                   >
-                    Connect USB
+                    Connect patch
                   </button>
                 )}
               </div>

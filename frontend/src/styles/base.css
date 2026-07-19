@@ -30,6 +30,7 @@ code, pre, kbd, samp, .logs-terminal, .logs-terminal * {
 html {
     scroll-behavior: smooth;
     font-size: 19px;
+    background: #480b13;
 }
 
 body {
