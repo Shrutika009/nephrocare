@@ -513,7 +513,7 @@ export function DashboardPage({
   }
 
   return (
-    <div className="dashboard-page" style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: "'Inter', 'Raleway', sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: "'Inter', 'Raleway', sans-serif" }}>
       
       {/* Scope specific scoped custom styling overrides for high-fidelity SaaS aesthetics */}
       <style>{`
@@ -800,9 +800,6 @@ export function DashboardPage({
         }
 
         @media (max-width: 600px) {
-          .dashboard-page {
-            overflow-x: hidden !important;
-          }
           .dashboard-header {
             flex-direction: column;
             align-items: flex-start;
@@ -814,33 +811,6 @@ export function DashboardPage({
           }
           .content-area {
             padding: 16px !important;
-          }
-          .kpi-row-custom {
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 10px !important;
-            margin-bottom: 16px !important;
-          }
-          .kpi-card-custom {
-            padding: 8px 10px !important;
-            gap: 8px !important;
-            border-radius: 10px !important;
-          }
-          .kpi-card-custom div:first-child {
-            width: 28px !important;
-            height: 28px !important;
-          }
-          .kpi-card-custom svg {
-            width: 14px !important;
-            height: 14px !important;
-          }
-          .kpi-card-custom strong {
-            font-size: 13.5px !important;
-          }
-          .kpi-card-custom span {
-            font-size: 9.5px !important;
-          }
-          .kpi-card-custom:last-child {
-            grid-column: span 2 !important;
           }
           .dashboard-bottom-grid {
             grid-template-columns: 1fr;
