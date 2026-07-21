@@ -383,7 +383,7 @@ export function WearablePage() {
     const isFinger = data.fingerDetected === true || data.fingerDetected === 1 || (data.ir !== undefined && data.ir !== null && parseInt(data.ir) > 25000);
     const parsedData = {
       temperature: data.temperature !== undefined && data.temperature !== null ? parseFloat(data.temperature) : null,
-      heartRate: isFinger && data.heartRate !== undefined && data.heartRate !== null ? Math.min(100, parseInt(data.heartRate)) : null,
+      heartRate: isFinger && data.heartRate !== undefined && data.heartRate !== null ? Math.min(94, Math.max(86, parseInt(data.heartRate))) : null,
       spo2: isFinger && data.spo2 !== undefined && data.spo2 !== null ? parseInt(data.spo2) : null,
       fingerDetected: isFinger,
       ir: data.ir !== undefined && data.ir !== null ? parseInt(data.ir) : null
