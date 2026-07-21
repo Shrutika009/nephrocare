@@ -481,7 +481,8 @@ export function DashboardPage({
 
   // Stage details mapping
   const getStageDescription = (stage: string) => {
-    switch (stage) {
+    const cleanStage = stage.replace(/^G/, 'Stage ');
+    switch (cleanStage) {
       case 'Stage 1': return 'Normal or high kidney function with mild structural damage.'
       case 'Stage 2': return 'Mild GFR reduction (eGFR 60-89 mL/min).'
       case 'Stage 3a': return 'Moderate GFR reduction (eGFR 45-59 mL/min).'
@@ -493,8 +494,9 @@ export function DashboardPage({
   }
 
   const getStageIndex = (stage: string) => {
+    const cleanStage = stage.replace(/^G/, 'Stage ');
     const stages = ['Stage 1', 'Stage 2', 'Stage 3a', 'Stage 3b', 'Stage 4', 'Stage 5']
-    return stages.indexOf(stage)
+    return stages.indexOf(cleanStage)
   }
 
   // Risk Gauge Math
@@ -620,7 +622,7 @@ export function DashboardPage({
         /* KPI top cards */
         .kpi-row-custom {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
           gap: 16px;
           margin-bottom: 24px;
         }
@@ -640,6 +642,16 @@ export function DashboardPage({
         .kpi-card-custom:hover {
           transform: translateY(-1px);
           box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        }
+        @media (max-width: 1400px) {
+          .kpi-row-custom {
+            grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+            gap: 10px;
+          }
+          .kpi-card-custom {
+            padding: 12px 8px;
+            gap: 8px;
+          }
         }
         
         /* Lab tabs */
@@ -704,24 +716,6 @@ export function DashboardPage({
         .btn-full { display: none; }
         .btn-short { display: inline; }
 
-        @media (max-width: 600px) {
-          .symptom-row {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 10px;
-            padding: 12px 0;
-          }
-          .symptom-buttons {
-            width: 100%;
-            justify-content: space-between;
-            gap: 8px;
-          }
-          .symptom-btn {
-            flex: 1;
-            padding: 10px !important;
-            font-size: 13px !important;
-            border-radius: 8px;
-          }
         @media (max-width: 600px) {
           .symptom-row {
             flex-direction: column;
@@ -900,8 +894,8 @@ export function DashboardPage({
               <strong style={{ fontSize: '17px', color: '#f59e0b' }}>
                 {latestPrediction ? latestPrediction.stage : 'N/A'}
               </strong>
-              <span style={{ fontSize: '9px', color: '#64748b', display: 'block', marginTop: '2px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '100px' }}>
-                {latestPrediction ? latestPrediction.stage : 'Not Screened'}
+              <span style={{ fontSize: '9px', color: '#f59e0b', display: 'block', fontWeight: 'bold', marginTop: '2px' }}>
+                {latestPrediction ? 'View Details ➔' : 'Not Screened'}
               </span>
             </div>
           </div>
