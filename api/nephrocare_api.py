@@ -1569,7 +1569,7 @@ class Handler(BaseHTTPRequestHandler):
             if hr is None:
                 hr = 72
             else:
-                hr = round(hr)
+                hr = min(100, round(hr))
                 
             spo2 = payload.get("spo2")
             if spo2 is None:
@@ -1608,7 +1608,7 @@ class Handler(BaseHTTPRequestHandler):
             t_wave_amp = 0.18
             qrs_amp = 1.2
             t_to_qrs_ratio = t_wave_amp / qrs_amp
-            hyperkalemia = (t_to_qrs_ratio > 0.50 and hr > 100)
+            hyperkalemia = (t_to_qrs_ratio > 0.50 and hr >= 100)
             
             timestamp_str = datetime.datetime.now().isoformat()
             

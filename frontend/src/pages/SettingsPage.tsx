@@ -626,7 +626,7 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
                 <ToggleRow
                   icon={<Activity size={16} />}
                   label="Wearable Anomaly Alerts"
-                  desc="Notify when SpO2 drops below 92% or HR exceeds 120 BPM"
+                  desc="Notify when SpO2 drops below 92% or HR exceeds 100 BPM"
                   value={wearableAlerts}
                   onChange={setWearableAlerts}
                   color="red"
@@ -636,7 +636,7 @@ export function SettingsPage({ user, showPage }: SettingsPageProps) {
               <div className="settings-grid-2" style={{ marginTop: '20px' }}>
                 <div className="settings-stat-card">
                   <div className="settings-stat-label">Heart Rate Threshold</div>
-                  <div className="settings-stat-value">120 <span>BPM</span></div>
+                  <div className="settings-stat-value">100 <span>BPM</span></div>
                 </div>
                 <div className="settings-stat-card">
                   <div className="settings-stat-label">SpO₂ Minimum</div>

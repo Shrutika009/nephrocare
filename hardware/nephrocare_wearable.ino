@@ -98,7 +98,7 @@ void loop()
 
     // Store only valid values
     if (validHeartRate && heartRate >= 40 && heartRate <= 180)
-      lastHR = heartRate;
+      lastHR = heartRate > 100 ? 100 : heartRate;
 
     if (validSPO2 && spo2 >= 80 && spo2 <= 100)
       lastSpO2 = spo2;
