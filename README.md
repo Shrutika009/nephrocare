@@ -2,7 +2,8 @@
 
 # 🩺 NephroCare
 
-**An AI-powered CKD care companion for early detection, personalized nutrition, and continuous monitoring.**
+**An AI-powered CKD care companion for early detection, personalized nutrition, and continuous monitoring.** 
+Demo Video https://drive.google.com/file/d/1or3H_p7nD9av0IYl5J4KXbUwda3jSGMv/view?usp=sharing
 
 ![Status](https://img.shields.io/badge/status-active-success)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
